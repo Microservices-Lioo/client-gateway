@@ -1,2 +1,4 @@
 
 export const CARD_SERVICE = 'CARD_SERVICE';
+
+export const ORDER_SERVICE = 'ORDER_SERVICE';

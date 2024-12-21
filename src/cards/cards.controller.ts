@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, Post, Delete, Patch, Body, Inject, Query, BadRequestException } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { catchError, firstValueFrom } from 'rxjs';
+import { catchError } from 'rxjs';
 import { PaginationDto } from 'src/common';
 import { CARD_SERVICE } from 'src/config';
 import { CreateCardDto } from './dto/create-card.dto';
