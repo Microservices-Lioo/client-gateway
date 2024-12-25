@@ -3,6 +3,7 @@ import { GamesController } from './games.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { envs, GAME_SERVICE } from 'src/config';
 import { GameModeController } from './game-mode.controller';
+import { RuleController } from './rules.controller';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { GameModeController } from './game-mode.controller';
       }
     ])
   ],
-  controllers: [GamesController, GameModeController,],
+  controllers: [GamesController, GameModeController, RuleController],
   providers: [],
 })
 export class GamesModule {}
