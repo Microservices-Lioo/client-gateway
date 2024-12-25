@@ -1,0 +1,8 @@
+{
+    "exportall.config.folderListener": [
+        "/src/games/dtos"
+    ],
+    "exportall.config.relExclusion": [
+        "/src/games/dtos"
+    ]
+}
