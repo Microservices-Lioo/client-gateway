@@ -28,7 +28,13 @@ export class AuthController {
     return this.clientAuth.send('refreshAuth', refresh_token)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
-  
+
+  @Post('verify-token')
+  verifyTokenAuth(@Body() access_token: string) {
+    return this.clientAuth.send('verifyTokenAuth', access_token)
+    .pipe(catchError( error => { throw new RpcException(error) }));
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOneUser(
