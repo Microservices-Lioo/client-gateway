@@ -24,13 +24,13 @@ export class AuthController {
   }
 
   @Post('refresh-token')
-  refreshTkn(@Body() refresh_token: string) {
+  refreshTkn(@Body('refresh_token') refresh_token: string) {
     return this.clientAuth.send('refreshAuth', refresh_token)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
   @Post('verify-token')
-  verifyTokenAuth(@Body() access_token: string) {
+  verifyTokenAuth(@Body('access_token') access_token: string) {
     return this.clientAuth.send('verifyTokenAuth', access_token)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
