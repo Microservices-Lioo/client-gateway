@@ -1,8 +1,8 @@
-import { PartialType } from '@nestjs/mapped-types';
+import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { RegisterAuthDto } from './register-auth.dto';
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
-export class UpdateAuthDto extends PartialType(RegisterAuthDto) {
+export class UpdateAuthDto extends OmitType(RegisterAuthDto, ['email']) {
   @IsOptional()
   @IsString()
   @IsEmail()

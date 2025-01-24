@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Inject, ParseIntPipe, UseGuards, Put, Request, UnauthorizedException, HttpStatus } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { AUTH_SERVICE } from 'src/config';
 import { LoginAuthDto, RegisterAuthDto, UpdateAuthDto } from './dto';
 import { catchError } from 'rxjs';
 import { JwtAuthGuard } from 'src/guards';
+import { CurrentUser } from 'src/common';
+import { User } from './entities';
 
 @Controller('auth')
 export class AuthController {
@@ -23,6 +25,14 @@ export class AuthController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
+  @Get('update-info-token')
+  @UseGuards(JwtAuthGuard)
+  updateInfoToken(@CurrentUser()  user: User ) {
+    const userId = user.id;
+    return this.clientAuth.send('updateInfoTokenAuth', userId )
+      .pipe(catchError( error => { throw new RpcException(error) }));
+  }
+
   @Post('refresh-token')
   refreshTkn(@Body('refresh_token') refresh_token: string) {
     return this.clientAuth.send('refreshAuth', refresh_token)
@@ -35,31 +45,41 @@ export class AuthController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOneUser(
     @Param('id', ParseIntPipe) id: number) {
     return this.clientAuth.send('findOneUser', id)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('email/:id')
+  @UseGuards(JwtAuthGuard)
   findOneUserEmail(
     @Param('email') email: string) {
     return this.clientAuth.send('findOneUserEmail', email)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Put(':id')
-  updateUser(@Param('id', ParseIntPipe) id: number, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.clientAuth.send('updateUser', { ...updateAuthDto, id: id })
+  @UseGuards(JwtAuthGuard)
+  updateUser(@Param('id', ParseIntPipe) id: number, @Body() updateAuthDto: UpdateAuthDto, @CurrentUser() user: User) {
+    console.log(id);
+    console.log(user.id);
+    if (id !== user.id) {
+      throw new UnauthorizedException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: 'You cannot modify this user',
+        error: 'cannot_modify_user'
+      });
+    }
+    
+    return this.clientAuth.send('updateUser', { ...updateAuthDto, email: user.email, id: user.id })
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   removeUser(@Param('id', ParseIntPipe) id: number) {
     return this.clientAuth.send('removeUser', id)
     .pipe(catchError( error => { throw new RpcException(error) }));
