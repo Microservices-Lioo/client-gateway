@@ -41,6 +41,7 @@ export class AuthController {
   }
 
   @Post('verify-token')
+  @UseGuards(JwtAuthGuard)
   verifyTokenAuth(@Body('access_token') access_token: string) {
     return this.clientAuth.send('verifyTokenAuth', access_token)
     .pipe(catchError( error => { throw new RpcException(error) }));
@@ -54,7 +55,7 @@ export class AuthController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @Get('email/:id')
+  @Get('email')
   @UseGuards(JwtAuthGuard)
   findOneUserEmail(
     @Param('email') email: string) {

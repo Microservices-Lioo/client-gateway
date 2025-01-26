@@ -4,16 +4,16 @@ import { IsNumber, Min } from "class-validator";
 export class CreateCardDto {
 
     @IsNumber()
-    public event: number;
+    eventId: number;
 
     @IsNumber()
-    public buyer: number;
+    buyer: number;
 
     @IsNumber({
         maxDecimalPlaces: 4
     })
     @Min(0)
     @Type( () => Number)
-    public price: number;
+    price: number;
 
 }

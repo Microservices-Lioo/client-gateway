@@ -3,6 +3,7 @@ import { EventController } from './event.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { envs, EVENT_SERVICE } from 'src/config';
 import { CustomException } from 'src/common';
+import { CardsController } from './cards.controller';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { CustomException } from 'src/common';
       }
     ])
   ],
-  controllers: [EventController],
+  controllers: [EventController, CardsController],
   providers: [CustomException],
 })
 export class EventModule {}

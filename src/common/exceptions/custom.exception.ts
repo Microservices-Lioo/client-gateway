@@ -6,7 +6,7 @@ export class CustomException {
         if (userId !== id) {
             throw new ForbiddenException({
                 status: HttpStatus.FORBIDDEN,
-                message: 'You cannot modify this user',
+                message: 'This action is not allowed for you',
                 error: 'forbidden_action'
             });
         }
