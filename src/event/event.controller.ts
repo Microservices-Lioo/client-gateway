@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe } from '@nestjs/common';
 import { CreateEventDto, UpdateEventDto } from './common';
 import { EVENT_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
@@ -22,17 +22,17 @@ export class EventController {
   //   .pipe(catchError(error => { throw new RpcException(error) }));
   // }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.clientEvent.send('findOneEvent')
-  //   .pipe(catchError(error => { throw new RpcException(error) }));
-  // }
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: string) {
+    return this.clientEvent.send('findOneEvent', id)
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
-  //   return this.clientEvent.send('updateEvent', updateEventDto)
-  //   .pipe(catchError(error => { throw new RpcException(error) }));
-  // }
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateEventDto: UpdateEventDto) {
+    return this.clientEvent.send('updateEvent', {...updateEventDto,  id})
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
 
   // @Delete(':id')
   // remove(@Param('id') id: string) {
