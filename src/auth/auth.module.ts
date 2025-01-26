@@ -5,6 +5,7 @@ import { AUTH_SERVICE, envs } from 'src/config';
 import { JwtStrategy } from 'src/strategies';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { CustomException } from 'src/common';
 
 @Module({
   imports: [
@@ -25,6 +26,6 @@ import { JwtModule } from '@nestjs/jwt';
     }),
   ],
   controllers: [AuthController],
-  providers: [JwtStrategy],
+  providers: [JwtStrategy, CustomException],
 })
 export class AuthModule {}

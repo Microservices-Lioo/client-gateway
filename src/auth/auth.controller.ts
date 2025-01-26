@@ -4,13 +4,14 @@ import { AUTH_SERVICE } from 'src/config';
 import { LoginAuthDto, RegisterAuthDto, UpdateAuthDto } from './dto';
 import { catchError } from 'rxjs';
 import { JwtAuthGuard } from 'src/guards';
-import { CurrentUser } from 'src/common';
+import { CurrentUser, CustomException } from 'src/common';
 import { User } from './entities';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     @Inject(AUTH_SERVICE) private readonly clientAuth: ClientProxy,
+    private readonly customException: CustomException
   ) {}
 
   @Post('sign-up')
@@ -63,24 +64,23 @@ export class AuthController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  updateUser(@Param('id', ParseIntPipe) id: number, @Body() updateAuthDto: UpdateAuthDto, @CurrentUser() user: User) {
-    console.log(id);
-    console.log(user.id);
-    if (id !== user.id) {
-      throw new UnauthorizedException({
-        status: HttpStatus.UNAUTHORIZED,
-        message: 'You cannot modify this user',
-        error: 'cannot_modify_user'
-      });
-    }
-    
+  updateUser(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateAuthDto: UpdateAuthDto, 
+    @CurrentUser() user: User
+  ) {
+    this.customException.validateUserId(user.id, id);    
     return this.clientAuth.send('updateUser', { ...updateAuthDto, email: user.email, id: user.id })
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  removeUser(@Param('id', ParseIntPipe) id: number) {
+  removeUser(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User
+  ) {
+    this.customException.validateUserId(user.id, id);
     return this.clientAuth.send('removeUser', id)
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
