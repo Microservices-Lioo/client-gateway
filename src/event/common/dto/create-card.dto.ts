@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsNumber, Min } from "class-validator";
+import { IsNotEmpty, IsNumber, IsPositive } from "class-validator";
 
 export class CreateCardDto {
 
@@ -12,7 +12,7 @@ export class CreateCardDto {
     @IsNumber({
         maxDecimalPlaces: 4
     })
-    @Min(0)
+    @IsPositive()
     @Type( () => Number)
     price: number;
 
