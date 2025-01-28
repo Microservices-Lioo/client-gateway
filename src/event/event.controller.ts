@@ -20,8 +20,7 @@ export class EventController {
     @Body() createEventDto: CreateEventDto,
     @CurrentUser() user: User
   ) {
-    this.customException.validateUserId(user.id, createEventDto.userId)
-    return this.clientEvent.send('createEvent', createEventDto)
+    return this.clientEvent.send('createEvent', { ...createEventDto, userId: user.id})
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
@@ -52,8 +51,9 @@ export class EventController {
   update(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateEventDto: UpdateEventDto,
+    @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('updateEvent', {...updateEventDto,  id})
+    return this.clientEvent.send('updateEvent', { ...updateEventDto,  id, userId: user.id })
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
