@@ -1,9 +1,9 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards, HttpStatus } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { CurrentUser, PaginationDto } from 'src/common';
 import { EVENT_SERVICE } from 'src/config';
-import { CreateCardDto, UpdateCardDto } from './common';
+import { CreateCardDto, UpdateAvailableCardDto } from './common';
 import { JwtAuthGuard } from 'src/guards';
 import { User } from 'src/auth/entities';
 
@@ -41,14 +41,14 @@ export class CardsController {
     .pipe(catchError(error => { throw new RpcException(error) }));
   }  
 
-  @Patch(':id')
+  @Patch('available/:cardId')
   @UseGuards(JwtAuthGuard)
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateCardDto: UpdateCardDto,
+  updateAvailable(
+    @Param('cardId', ParseIntPipe) cardId: number,
+    @Body() updateAvailable: UpdateAvailableCardDto,
     @CurrentUser() user: User
   ) {
-    return this.clientCards.send('updateCard', { id, userId: user.id, ...updateCardDto} )
+    return this.clientCards.send('updateAvailableCard', { cardId, userId: user.id, eventId: updateAvailable.eventId } )
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
