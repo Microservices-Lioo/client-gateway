@@ -1,7 +1,7 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Delete, Patch, Body, Inject, Query, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
-import { CurrentUser, PaginationDto, CustomException } from 'src/common';
+import { CurrentUser, PaginationDto } from 'src/common';
 import { EVENT_SERVICE } from 'src/config';
 import { CreateCardDto, UpdateCardDto } from './common';
 import { JwtAuthGuard } from 'src/guards';
@@ -12,7 +12,6 @@ export class CardsController {
 
   constructor(
     @Inject(EVENT_SERVICE) private readonly clientCards: ClientProxy,
-    private readonly customException: CustomException
   ) {}
 
   @Post()
@@ -21,8 +20,8 @@ export class CardsController {
     @Body() createDto: CreateCardDto,
     @CurrentUser() user: User
   ) {
-    this.customException.validateUserId(user.id, createDto.buyer);
-    return this.clientCards.send('createCard', createDto);
+    return this.clientCards.send('createCard', { ...createDto, buyer: user.id })
+    .pipe(catchError(error => { throw new RpcException(error) }));
   }
   
   @Get(':id')
@@ -38,7 +37,8 @@ export class CardsController {
     @Param('eventId', ParseIntPipe) eventId: number,
     @Query() paginationDto: PaginationDto
   ) {
-    return this.clientCards.send('findAllCardsByEvent', { event: eventId, paginationDto});
+    return this.clientCards.send('findAllCardsByEvent', { event: eventId, paginationDto})
+    .pipe(catchError(error => { throw new RpcException(error) }));
   }  
 
   @Patch(':id')
@@ -48,9 +48,7 @@ export class CardsController {
     @Body() updateCardDto: UpdateCardDto,
     @CurrentUser() user: User
   ) {
-    console.log(updateCardDto)
-    this.customException.validateUserId(user.id, updateCardDto.buyer);
-    return this.clientCards.send('updateCard', { id, ...updateCardDto} )
+    return this.clientCards.send('updateCard', { id, userId: user.id, ...updateCardDto} )
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
