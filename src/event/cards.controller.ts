@@ -39,7 +39,7 @@ export class CardsController {
   ) {
     return this.clientCards.send('findAllCardsByEvent', { event: eventId, paginationDto})
     .pipe(catchError(error => { throw new RpcException(error) }));
-  }  
+  }
 
   @Patch('available/:cardId')
   @UseGuards(JwtAuthGuard)
@@ -50,6 +50,14 @@ export class CardsController {
   ) {
     return this.clientCards.send('updateAvailableCard', { cardId, userId: user.id, eventId: updateAvailable.eventId } )
     .pipe(catchError( error => { throw new RpcException(error) }));
+  }
+
+  @Get('/count/:eventId')
+  countAllCardsByEvent(
+    @Param('eventId', ParseIntPipe) eventId: number
+  ){
+    return this.clientCards.send('countAllCardsByEvent', eventId)
+    .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
 }
