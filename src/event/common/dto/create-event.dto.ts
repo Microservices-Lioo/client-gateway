@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDate, IsNotEmpty, IsString } from "class-validator"
+import { IsDate, IsNotEmpty, IsNumber, IsPositive, IsString } from "class-validator"
 import { IsDateLongerToday } from "src/common";
 
 export class CreateEventDto {
@@ -16,4 +16,12 @@ export class CreateEventDto {
     @IsNotEmpty()
     @IsDateLongerToday()
     start_time: Date;
+
+    @IsNotEmpty()
+    @IsNumber({
+        maxDecimalPlaces: 4
+    })
+    @IsPositive()
+    @Type( () => Number)
+    price: number;
 }

@@ -7,5 +7,5 @@ export class Event {
     userId: number;
     status: StatusEvent;
     start_time: string;
-    val_cart: string;
+    price: number;
 }

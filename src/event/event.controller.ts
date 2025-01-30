@@ -1,17 +1,16 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, HttpStatus, UnauthorizedException } from '@nestjs/common';
-import { CreateEventDto, UpdateEventDto } from './common';
+import { CreateEventDto, UpdateEventDto, UpdateStatusEventDto } from './common';
 import { EVENT_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { JwtAuthGuard } from 'src/guards';
-import { CurrentUser, CustomException, PaginationDto } from 'src/common';
+import { CurrentUser, PaginationDto } from 'src/common';
 import { User } from 'src/auth/entities';
 
 @Controller('event')
 export class EventController {
   constructor(
-    @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy,
-    private readonly customException: CustomException
+    @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy
   ) {}
 
   @Post()
@@ -32,6 +31,17 @@ export class EventController {
     @CurrentUser() user: User
   ) {
     return this.clientEvent.send('updateEvent', { ...updateEventDto,  id, userId: user.id })
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  @Patch('status/:eventId')
+  @UseGuards(JwtAuthGuard)
+  updateStatus(
+    @Param('eventId', ParseIntPipe) eventId: number, 
+    @Body() updateStatus: UpdateStatusEventDto,
+    @CurrentUser() user: User
+  ) {
+    return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
@@ -85,5 +95,5 @@ export class EventController {
   findAllProgrammed(@Body() pagination: PaginationDto) {
     return this.clientEvent.send('findAllProgrammedEvent', pagination)
     .pipe(catchError(error => { throw new RpcException(error) }));
-  }  
+  }
 }
