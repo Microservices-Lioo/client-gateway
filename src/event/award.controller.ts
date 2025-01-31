@@ -1,9 +1,9 @@
-import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
-import { EVENT_SERVICE } from "src/config";
+import { AUTH_SERVICE, EVENT_SERVICE } from "src/config";
 import { JwtAuthGuard } from "src/guards";
 import { CreateAwardDto } from "./common";
-import { catchError } from "rxjs";
+import { catchError, forkJoin, map, of, switchMap } from "rxjs";
 import { CurrentUser } from "src/common";
 import { User } from "src/auth/entities";
 
@@ -11,8 +11,9 @@ import { User } from "src/auth/entities";
 export class AwardController {
 
     constructor(
+        @Inject(AUTH_SERVICE) private readonly clientAuth: ClientProxy,
         @Inject(EVENT_SERVICE) private readonly clientAward: ClientProxy,
-    ) {}
+    ) { }
 
     @Post()
     @UseGuards(JwtAuthGuard)
@@ -21,6 +22,39 @@ export class AwardController {
         @CurrentUser() user: User
     ) {
         return this.clientAward.send('createAward', { createAwardDto, userId: user.id })
-        .pipe(catchError(error => { throw new RpcException(error) }));
+            .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    @Get('event/:eventId')
+    @UseGuards(JwtAuthGuard)
+    findAllByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
+        return this.clientAward.send('findAllByEventAward', eventId)
+            .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    @Get('winners/:eventId')
+    @UseGuards(JwtAuthGuard)
+    findAllWinnersByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
+        return this.clientAward.send<number[]>('findAllWinnersByEventAward', eventId)
+            .pipe(
+                catchError(error => { throw new RpcException(error) }),
+                switchMap((userIds: number[]) => {
+                    if (!userIds || userIds.length === 0) return of([]);
+
+                    const existWinners = userIds.filter(userId => userId != null);
+                    if (existWinners.length === 0) return of([]);
+                    
+                    const userObservables = existWinners.map(
+                        (userId) => this.clientAuth.send('findOneUser', { id: userId})
+                            .pipe(catchError(error => { return of(null); }))
+                    );
+
+                    return forkJoin(userObservables)
+                        .pipe(map((users) => {
+                            return users.filter(user => user != null);
+                        }));
+                }),
+                catchError(error => { throw new RpcException(error) })
+            );
     }
 }
