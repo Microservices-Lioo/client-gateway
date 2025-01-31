@@ -1,3 +1,4 @@
+export * from './create-award.dto';
 export * from './create-card.dto';
 export * from './create-event.dto';
 export * from './update-available-card.dto';
