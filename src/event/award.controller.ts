@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Inject, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseIntPipe, Patch, Post, UseGuards } from "@nestjs/common";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
 import { AUTH_SERVICE, EVENT_SERVICE } from "src/config";
 import { JwtAuthGuard } from "src/guards";
-import { CreateAwardDto } from "./common";
+import { CreateAwardDto, UpdateAwardDto } from "./common";
 import { catchError, forkJoin, map, of, switchMap } from "rxjs";
 import { CurrentUser } from "src/common";
 import { User } from "src/auth/entities";
@@ -56,5 +56,22 @@ export class AwardController {
                 }),
                 catchError(error => { throw new RpcException(error) })
             );
+    }
+
+    @Get(':id')
+    @UseGuards(JwtAuthGuard)
+    findOne(@Param('id', ParseIntPipe) id: number) {
+        return this.clientAward.send('findOneAward', id)
+        .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    @Patch(':id')
+    @UseGuards(JwtAuthGuard)
+    update(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() updateAwardDto: UpdateAwardDto        
+    ) {
+        return this.clientAward.send('updateAward', { ...updateAwardDto, id })
+        .pipe(catchError(error => { throw new RpcException(error) }));
     }
 }
