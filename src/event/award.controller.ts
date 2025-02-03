@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, ParseIntPipe, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, ParseIntPipe, Patch, Post, UseGuards } from "@nestjs/common";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
 import { AUTH_SERVICE, EVENT_SERVICE } from "src/config";
 import { JwtAuthGuard } from "src/guards";
@@ -72,6 +72,15 @@ export class AwardController {
         @Body() updateAwardDto: UpdateAwardDto        
     ) {
         return this.clientAward.send('updateAward', { ...updateAwardDto, id })
+        .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    @Delete(':id')
+    @UseGuards(JwtAuthGuard)
+    remove(
+        @Param('id', ParseIntPipe) id: number    
+    ) {
+        return this.clientAward.send('removeAward', id)
         .pipe(catchError(error => { throw new RpcException(error) }));
     }
 }
