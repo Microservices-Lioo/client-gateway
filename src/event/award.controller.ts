@@ -25,6 +25,16 @@ export class AwardController {
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
+    @Post('multi')
+    @UseGuards(JwtAuthGuard)
+    createMulti(
+        @Body() createAwardDto: CreateAwardDto[],
+        @CurrentUser() user: User
+    ) {
+        return this.clientAward.send('createMultiAward', { createAwardDto, userId: user.id })
+            .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
     @Get('event/:eventId')
     @UseGuards(JwtAuthGuard)
     findAllByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
