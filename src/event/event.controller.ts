@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
 import { CreateEventDto, UpdateEventDto, UpdateStatusEventDto } from './common';
 import { EVENT_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
@@ -67,7 +67,7 @@ export class EventController {
   @Get('for-user')
   @UseGuards(JwtAuthGuard)
   findByUser(
-    @Body() pagination: PaginationDto,
+    @Query() pagination: PaginationDto,
     @CurrentUser() user: User) {
     return this.clientEvent.send('findByUserEvent', { id: user.id, pagination})
     .pipe(catchError(error => { throw new RpcException(error) }));
@@ -76,7 +76,7 @@ export class EventController {
   @Get('for-user/awards')
   @UseGuards(JwtAuthGuard)
   findByUserWithAwards(
-    @Body() pagination: PaginationDto,
+    @Query() pagination: PaginationDto,
     @CurrentUser() user: User
   ) {
     return this.clientEvent.send('findByUserWithAwardsEvent', { id: user.id, pagination })
