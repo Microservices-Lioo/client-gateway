@@ -73,6 +73,16 @@ export class EventController {
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  @Get('for-user/awards')
+  @UseGuards(JwtAuthGuard)
+  findByUserWithAwards(
+    @Body() pagination: PaginationDto,
+    @CurrentUser() user: User
+  ) {
+    return this.clientEvent.send('findByUserWithAwardsEvent', { id: user.id, pagination })
+      .pipe(catchError(error => { throw new RpcException(error)}));
+  }
+
   @Get()
   findAll() {
     return this.clientEvent.send('findAllEvent', {})
