@@ -7,7 +7,7 @@ import { catchError, forkJoin, map, of, switchMap } from "rxjs";
 import { CurrentUser } from "src/common";
 import { User } from "src/auth/entities";
 
-@Controller('Award')
+@Controller('award')
 export class AwardController {
 
     constructor(
