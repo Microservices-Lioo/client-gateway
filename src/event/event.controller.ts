@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
-import { CreateEventDto, UpdateEventDto, UpdateStatusEventDto } from './common';
+import { CreateEventDto, StatusEvent, UpdateEventDto, UpdateStatusEventDto } from './common';
 import { EVENT_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
@@ -55,12 +55,9 @@ export class EventController {
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  findOne(
-    @Param('id', ParseIntPipe) id: number, 
-  ) {
-    return this.clientEvent.send('findOneEvent', id)
+  @Get()
+  findAll() {
+    return this.clientEvent.send('findAllEvent', {})
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
@@ -82,28 +79,32 @@ export class EventController {
     return this.clientEvent.send('findByUserWithAwardsEvent', { id: user.id, pagination })
       .pipe(catchError(error => { throw new RpcException(error)}));
   }
-
-  @Get()
-  findAll() {
-    return this.clientEvent.send('findAllEvent', {})
-    .pipe(catchError(error => { throw new RpcException(error) }));
-  }
-
-  @Get('now')
-  findAllNow(@Body() pagination: PaginationDto) {
-    return this.clientEvent.send('findAllNowEvent', pagination)
-    .pipe(catchError(error => { throw new RpcException(error) }));
-  }
-
-  @Get('today')
-  findAllToday(@Body() pagination: PaginationDto) {
-    return this.clientEvent.send('findAllTodayEvent', pagination)
-    .pipe(catchError(error => { throw new RpcException(error) }));
-  } 
   
-  @Get('programmed')
-  findAllProgrammed(@Body() pagination: PaginationDto) {
-    return this.clientEvent.send('findAllProgrammedEvent', pagination)
+  @Get('status/:status')
+  findAllStatus(
+    @Param('status') status: StatusEvent,
+    @Query() pagination: PaginationDto) {
+    return this.clientEvent.send('findAllStatusEvent', { pagination, status})
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  @Get('by-user/status/:status')
+  @UseGuards(JwtAuthGuard)
+  findAllByUserStatus(
+    @Param('status') status: StatusEvent,
+    @Query() pagination: PaginationDto,
+    @CurrentUser() user: User
+  ) {
+    return this.clientEvent.send('findAllByUserStatusEvent', { userId: user.id, pagination, status})
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  findOne(
+    @Param('id', ParseIntPipe) id: number, 
+  ) {
+    return this.clientEvent.send('findOneEvent', id)
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 }
