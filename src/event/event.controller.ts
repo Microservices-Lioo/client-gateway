@@ -79,7 +79,7 @@ export class EventController {
     return this.clientEvent.send('findByUserWithAwardsEvent', { id: user.id, pagination })
       .pipe(catchError(error => { throw new RpcException(error)}));
   }
-  
+
   @Get('status/:status')
   findAllStatus(
     @Param('status') status: StatusEvent,
@@ -105,6 +105,14 @@ export class EventController {
     @Param('id', ParseIntPipe) id: number, 
   ) {
     return this.clientEvent.send('findOneEvent', id)
+    .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  @Get('awards/:eventId')
+  findOneWithAward(
+    @Param('eventId', ParseIntPipe) eventId: number, 
+  ) {
+    return this.clientEvent.send('findOneWithAwardEvent', eventId)
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 }

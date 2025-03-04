@@ -1,11 +1,12 @@
 import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards, HttpStatus } from '@nestjs/common';
-import { ClientProxy, RpcException } from '@nestjs/microservices';
+import { ClientProxy, EventPattern, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { CurrentUser, PaginationDto } from 'src/common';
 import { EVENT_SERVICE } from 'src/config';
-import { CreateCardDto, UpdateAvailableCardDto } from './common';
+import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto } from './common';
 import { JwtAuthGuard } from 'src/guards';
 import { User } from 'src/auth/entities';
+import { OnEvent } from '@nestjs/event-emitter';
 
 @Controller('card')
 export class CardsController {
@@ -22,6 +23,13 @@ export class CardsController {
   ) {
     return this.clientCards.send('createCard', { ...createDto, buyer: user.id })
     .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  @OnEvent('create.many.cards', { async: true })
+  createManyCards(data: CreateManyCardDto) {
+    this.clientCards.send('createManyCard', data)
+    .pipe(catchError(error => { throw new RpcException(error) }))
+    .subscribe();
   }
   
   @Get(':id')
