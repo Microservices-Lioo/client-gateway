@@ -115,4 +115,14 @@ export class EventController {
     return this.clientEvent.send('findOneWithAwardEvent', eventId)
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
+
+  @Get('awards/:eventId/:userId')
+  @UseGuards(JwtAuthGuard)
+  findByUserEvent(
+    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.clientEvent.send('findByUserEvent', { eventId, userId })
+      .pipe(catchError(error => { throw new RpcException(error)}));
+  }
 }
