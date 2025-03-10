@@ -68,4 +68,13 @@ export class CardsController {
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
+  @Get('/count/user/:eventId')
+  @UseGuards(JwtAuthGuard)
+  getCardCountForUserAndEvent(
+    @Param('eventId', ParseIntPipe) eventId: number,
+    @CurrentUser() user: User
+  ){
+    return this.clientCards.send('getCardCountForUserAndEvent', { buyer: user.id, eventId})
+    .pipe(catchError( error => { throw new RpcException(error)} ));
+  }
 }
