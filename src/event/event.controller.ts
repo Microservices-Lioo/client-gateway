@@ -125,4 +125,14 @@ export class EventController {
     return this.clientEvent.send('findByUserEvent', { eventId, userId })
       .pipe(catchError(error => { throw new RpcException(error)}));
   }
+
+  @Get('is-admin/:eventId')
+  @UseGuards(JwtAuthGuard)
+  findByUserRoleEvent(
+    @Param('eventId', ParseIntPipe) eventId: number,
+    @CurrentUser() user: User
+  ) {
+    return this.clientEvent.send('findByUserRoleEvent', { eventId, userId: user.id })
+      .pipe(catchError(error => { throw new RpcException(error)}));
+  }
 }
