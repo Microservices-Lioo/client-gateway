@@ -1,3 +1,3 @@
-export * from './dto/pagination';
-export * from './exceptions/index';
-export * from './decorators/index';
+export * from './decorators';
+export * from './exceptions';
+export * from './dto';
