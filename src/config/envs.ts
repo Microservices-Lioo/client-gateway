@@ -17,6 +17,8 @@ interface EnvVars {
     JWT_EXPIRATION: string;
     JWT_REFRESH_SECRET: string;
     JWT_REFRESH_EXPIRATION: string;
+    STRIPE_API_KEY: string;
+    SECRET_PAYMENT: string;
 }
 
 export const envs: EnvVars = {
@@ -35,4 +37,6 @@ export const envs: EnvVars = {
     JWT_EXPIRATION: env.get('JWT_EXPIRATION').required().asString(),
     JWT_REFRESH_SECRET: env.get('JWT_REFRESH_SECRET').required().asString(),
     JWT_REFRESH_EXPIRATION: env.get('JWT_REFRESH_EXPIRATION').required().asString(),
+    STRIPE_API_KEY: env.get('STRIPE_API_KEY').required().asString(),
+    SECRET_PAYMENT: env.get('SECRET_PAYMENT').required().asString(),
 }

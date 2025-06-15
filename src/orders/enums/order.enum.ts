@@ -1,11 +1,24 @@
 export enum OrderStatus {
     PENDING = 'PENDING',
-    DELIVERED = 'DELIVERED',
-    CANCELLED = 'CANCELLED'
+    PAID = 'PAID',
+    FAILED = 'FAILED',
+    REFUNDED = 'REFUNDED',
+    CANCELLED = 'CANCELLED',
 
 }
+
 export const OrderStatusList = [
     OrderStatus.PENDING,
-    OrderStatus.DELIVERED,
+    OrderStatus.PAID,
+    OrderStatus.FAILED,
+    OrderStatus.REFUNDED,
     OrderStatus.CANCELLED,
-]
+];
+
+export enum Currency {
+    USD = 'USD'
+}
+
+export const CurrencyList = [
+    Currency.USD
+];

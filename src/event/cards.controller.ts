@@ -1,18 +1,19 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards, HttpStatus } from '@nestjs/common';
-import { ClientProxy, EventPattern, RpcException } from '@nestjs/microservices';
+import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { CurrentUser, PaginationDto } from 'src/common';
 import { EVENT_SERVICE } from 'src/config';
 import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto } from './common';
 import { JwtAuthGuard } from 'src/guards';
 import { User } from 'src/auth/entities';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
 @Controller('card')
 export class CardsController {
 
   constructor(
     @Inject(EVENT_SERVICE) private readonly clientCards: ClientProxy,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   @Post()
@@ -27,9 +28,23 @@ export class CardsController {
 
   @OnEvent('create.many.cards', { async: true })
   createManyCards(data: CreateManyCardDto) {
-    this.clientCards.send('createManyCard', data)
-    .pipe(catchError(error => { throw new RpcException(error) }))
-    .subscribe();
+    const cardsListen = this.clientCards.send('createManyCard', data)
+    .pipe(catchError(error => { throw new RpcException(error) }));
+    
+    cardsListen.subscribe( {
+      next: (value) => {
+      if (Array.isArray(value)) {
+        this.eventEmitter.emit('create.items.order', value);
+      } else {
+        this.eventEmitter.emit('create.item.order', value);
+      }
+
+      },
+      error: (error) => {
+        console.log('Error al obtener datos de las cards: ' + error);
+      }
+    });
+
   }
   
   @Get(':id')
