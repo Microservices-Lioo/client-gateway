@@ -5,13 +5,19 @@
     "version": "0.2.0",
     "configurations": [        
         {
-            "name": "Attach",
-            "port": 9229,
-            "request": "attach",
-            "skipFiles": [
-                "<node_internals>/**"
+            "name": "NestJs",
+            "type": "node",
+            "request": "launch",
+            "runtimeArgs": [
+                "-r",
+                "ts-node/register",
+                "-r",
+                "tsconfig-paths/register"
             ],
-            "type": "node"
+            "args": [
+                "${workspaceFolder}/src/main.ts"
+            ],
+            "autoAttachChildProcesses": true
         }
     ]
 }
