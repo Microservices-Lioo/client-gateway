@@ -5,6 +5,7 @@ import { AUTH_SERVICE, envs, EVENT_SERVICE } from 'src/config';
 import { CustomException } from 'src/common';
 import { CardsController } from './cards.controller';
 import { AwardController } from './award.controller';
+import { EventService } from './event.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AwardController } from './award.controller';
     ])
   ],
   controllers: [EventController, CardsController, AwardController],
-  providers: [CustomException],
+  providers: [CustomException, EventService],
+  exports: [EventService]
 })
 export class EventModule { }
