@@ -1,6 +1,6 @@
 import { StatusEvent } from "../enums";
 
-export class Event {
+export class EventEntity {
     id: number;
     name: string;
     description: string;

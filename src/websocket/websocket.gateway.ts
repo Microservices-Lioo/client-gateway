@@ -1,9 +1,16 @@
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer, WsResponse } from '@nestjs/websockets';
-import { Logger, OnModuleInit, UseFilters, UseGuards } from '@nestjs/common';
+import { 
+  ConnectedSocket, 
+  MessageBody, 
+  OnGatewayConnection, 
+  OnGatewayDisconnect, 
+  OnGatewayInit, 
+  SubscribeMessage, 
+  WebSocketGateway, 
+  WebSocketServer 
+} from '@nestjs/websockets';
+import { Logger, UseFilters } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { EventService } from 'src/event/event.service';
-import { CurrentUser } from 'src/common';
-import { User } from 'src/auth/entities';
 import { envs } from 'src/config';
 import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket-auth.middleware';
 import { WsExceptionFilter } from './exceptions/ws.exception';
@@ -47,23 +54,50 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @MessageBody() room: number, 
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    const { userId } = client.user;
+    const joinRoom = `Room #${room}`;
+
     //* Validacion si el usuario pertenece al evento
-    this.eventServ.verifyAParticipatingUserEvent(room, client.user.userId)
+    this.eventServ.verifyAParticipatingUserEvent(room, userId)
     .subscribe({
       next: (exists) => {
         if (!exists) {
           client.emit('unauthorized', { message: 'No perteneces al evento' });
           client.disconnect();
         } else {
-          client.join(room.toString());
-          this.server.to(room.toString()).emit('notification', `${client.id} se unió a la sala ${room}`);
+          client.join(joinRoom);
+          this.server.to(joinRoom).emit('cantPlayers', `${client.id} se unió a la sala ${room}`);
         }
       },
       error: (error) => {
         client.emit('', { message: 'Error de validación: ' + error.message });
       }
-    })
-    
+    });    
+  }
+
+  @SubscribeMessage('waitingGame')
+  handleWaitingGame(
+    @MessageBody() room: number,
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    const { userId } = client.user;
+    const joinRoom = `Waiting room #${room}`;
+    //* Validacion si el usuario pertenece al evento
+    this.eventServ.verifyAParticipatingUserEvent(room, userId)
+    .subscribe({
+      next: (exists) => {
+        if (!exists) {
+          client.emit('unauthorized', { message: 'No perteneces al evento' });
+          client.disconnect();
+        } else {
+          client.join(joinRoom);
+          client.emit(joinRoom, { message: `Estas en la sala de espera #${room}`, status: true});
+        }
+      },
+      error: (error) => {
+        client.emit('', { message: 'Error de validación: ' + error.message });
+      }
+    });
   }
 
   handleDisconnect(client: Socket) {
