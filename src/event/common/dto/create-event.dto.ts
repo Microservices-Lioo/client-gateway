@@ -15,7 +15,7 @@ export class CreateEventDto {
     @IsDate()
     @IsNotEmpty()
     @IsDateLongerToday()
-    start_time: Date;
+    time: Date;
 
     @IsNotEmpty()
     @IsNumber({
