@@ -14,6 +14,8 @@ import { EventService } from 'src/event/event.service';
 import { envs } from 'src/config';
 import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket-auth.middleware';
 import { WsExceptionFilter } from './exceptions/ws.exception';
+import { OnEvent } from '@nestjs/event-emitter';
+import { StatusEvent } from 'src/event/common';
 
 @WebSocketGateway(
   { 
@@ -55,7 +57,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { userId } = client.user;
-    const joinRoom = `Room #${room}`;
+    const joinRoom = `room:${room}`;
 
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
@@ -66,11 +68,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
           client.disconnect();
         } else {
           client.join(joinRoom);
-          this.server.to(joinRoom).emit('cantPlayers', `${client.id} se unió a la sala ${room}`);
+          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id });
+          this.connectedPlayers(joinRoom); 
         }
       },
       error: (error) => {
-        client.emit('', { message: 'Error de validación: ' + error.message });
+        client.emit('unauthorized', { message: 'Error de validación: ' + error.message });
       }
     });    
   }
@@ -81,7 +84,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket
   ) {
     const { userId } = client.user;
-    const joinRoom = `Waiting room #${room}`;
+    const joinRoom = `room:${room}:waiting`;
+    
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
     .subscribe({
@@ -91,17 +95,72 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
           client.disconnect();
         } else {
           client.join(joinRoom);
-          client.emit(joinRoom, { message: `Estas en la sala de espera #${room}`, status: true});
+          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id });
+          this.connectedPlayers(joinRoom);          
+          client.emit(joinRoom, { message: `Sala #${room}: Evento no iniciado. Ahora te encuentras en sala de espera.`, status: true});
         }
       },
       error: (error) => {
-        client.emit('', { message: 'Error de validación: ' + error.message });
+        client.emit('unauthorrized', { message: 'Error de validación: ' + error.message });
+      }
+    });
+  }
+
+  private connectedPlayers(joinRoom: string) {
+    this.eventServ.countUsersRoom(joinRoom).subscribe({
+      next: (countUsers) => {
+        if (countUsers) {
+          this.server.to(joinRoom).emit(`${joinRoom}:countUsers`, countUsers);
+        }
       }
     });
   }
 
   handleDisconnect(client: Socket) {
     console.log(`Jugador #${client.id} desconectado`);
+  }
+
+  @OnEvent('event.update.status')
+  async updateStatusEvent(
+    data: { status: StatusEvent, eventId: number }
+  ) {
+    const { status, eventId } = data;
+    const room = `room:${eventId}:waiting`;
+    const toRoom = `room:${eventId}`;
+    if (status === StatusEvent.NOW) {
+      //* Iniciar sala
+
+      //* Cambiar de sala
+      this.eventServ.moveToRoom(room, toRoom).subscribe();
+      this.moveRoom(room, toRoom);
+      this.moveRoom(`${room}:countUsers`, `${toRoom}:countUsers`);
+    } else if (status === StatusEvent.COMPLETED) {
+
+      //* Elimnar sala
+      this.deleteRoom(toRoom);
+      this.disconnectedRoom(toRoom);
+      this.disconnectedRoom(`${toRoom}:countUsers`);
+    }
+  }
+
+  async disconnectedRoom(roomId: string) {
+    const sockets = await this.server.in(roomId).fetchSockets();
+    sockets.forEach(element => {
+      element.leave(roomId);
+    });
+  }
+
+  async moveRoom(currentRoom: string, toRoom: string) {
+    const sockets = await this.server.in(currentRoom).fetchSockets();
+    sockets.forEach(element => {
+      element.leave(currentRoom);
+      element.join(toRoom);   
+    });
+    this.connectedPlayers(toRoom);
+  }
+
+  async deleteRoom(room: string) {
+    this.eventServ.deleteRoom(room).subscribe();
   }
 
 }

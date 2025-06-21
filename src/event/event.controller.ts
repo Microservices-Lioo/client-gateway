@@ -2,15 +2,17 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe
 import { CreateEventDto, StatusEvent, UpdateEventDto, UpdateStatusEventDto } from './common';
 import { EVENT_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { catchError } from 'rxjs';
+import { catchError, tap } from 'rxjs';
 import { JwtAuthGuard } from 'src/guards';
 import { CurrentUser, PaginationDto } from 'src/common';
 import { User } from 'src/auth/entities';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Controller('event')
 export class EventController {
   constructor(
-    @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy
+    @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy,
+    private eventEmitter: EventEmitter2
   ) {}
 
   @Post()
@@ -41,8 +43,17 @@ export class EventController {
     @Body() updateStatus: UpdateStatusEventDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    this.eventEmitter.emit('event.update.status', 
+      { status: StatusEvent.NOW, eventId: eventId });
+    return { message: 'Evento emitido con éxito', ok: true };
+    // return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
+    // .pipe(
+    //   tap((value) => {
+    //     console.log('data: ' + JSON.stringify(value));
+    //     this.clientEvent.emit('event.update.status', value.status);
+    //   }),
+    //   catchError(error => { throw new RpcException(error) })
+    // );
   }
 
   @Delete(':id')
