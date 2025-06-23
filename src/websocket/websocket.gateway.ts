@@ -109,6 +109,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   private connectedPlayers(joinRoom: string) {
     this.eventServ.countUsersRoom(joinRoom).subscribe({
       next: (countUsers) => {
+        console.log(countUsers);
         if (countUsers) {
           this.server.to(joinRoom).emit(`${joinRoom}:countUsers`, countUsers);
         }
@@ -116,7 +117,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     });
   }
 
-  handleDisconnect(client: Socket) {
+  async handleDisconnect(client: AuthenticatedSocket) {
+    await this.deleteUserRoom(client.user.userId, client.id);
     console.log(`Jugador #${client.id} desconectado`);
   }
 
@@ -143,6 +145,21 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     }
   }
 
+  @SubscribeMessage('disconnectRoom')
+  handleDisconnectRoom(
+    @MessageBody() room: number, 
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { userId } = client.user;
+    const name = `room:${room}`;
+    client.leave(`${name}:waiting`);
+    client.leave(`${name}:waiting:countUsers`);
+    client.leave(name);
+    client.leave(`${name}:countUsers`);
+
+    this.deleteUserRoom(userId, client.id);
+  }
+
   async disconnectedRoom(roomId: string) {
     const sockets = await this.server.in(roomId).fetchSockets();
     sockets.forEach(element => {
@@ -161,6 +178,14 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   async deleteRoom(room: string) {
     this.eventServ.deleteRoom(room).subscribe();
+  }
+
+  async deleteUserRoom(userId: number, socketId: string) {
+    this.eventServ.deleteUserRoom(userId, socketId).subscribe(room => {
+      if (room) {
+        this.connectedPlayers(room);
+      }
+    });
   }
 
 }

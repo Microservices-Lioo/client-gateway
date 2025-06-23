@@ -45,4 +45,9 @@ export class EventService {
         return this.clientEvent.send('deleteRoom', key)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
+
+    deleteUserRoom(userId: number, socketId: string) {
+        return this.clientEvent.send('deleteUserRoom', {userId, socketId})
+            .pipe(catchError(error => { throw new RpcException(error) }));
+    }
 }
