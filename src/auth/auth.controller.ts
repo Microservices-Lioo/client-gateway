@@ -48,7 +48,6 @@ export class AuthController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
   findOneUser(
     @Param('id', ParseIntPipe) id: number) {
     return this.clientAuth.send('findOneUser', id)
