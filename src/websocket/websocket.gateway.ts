@@ -28,6 +28,7 @@ import { StatusEvent } from 'src/event/common';
 )
 @UseFilters(WsExceptionFilter)
 export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+  joinKeyRoom = 'room';
 
   @WebSocketServer()
   server: Server;
@@ -57,7 +58,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { userId } = client.user;
-    const joinRoom = `room:${room}`;
+    const joinRoom = `${this.joinKeyRoom}:${room}`;
 
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
@@ -84,7 +85,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket
   ) {
     const { userId } = client.user;
-    const joinRoom = `room:${room}:waiting`;
+    const joinRoom = `${this.joinKeyRoom}:${room}:waiting`;
     
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
@@ -109,7 +110,6 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   private connectedPlayers(joinRoom: string) {
     this.eventServ.countUsersRoom(joinRoom).subscribe({
       next: (countUsers) => {
-        console.log(countUsers);
         if (countUsers) {
           this.server.to(joinRoom).emit(`${joinRoom}:countUsers`, countUsers);
         }
@@ -119,21 +119,20 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   async handleDisconnect(client: AuthenticatedSocket) {
     await this.deleteUserRoom(client.user.userId, client.id);
-    console.log(`Jugador #${client.id} desconectado`);
   }
 
   @OnEvent('event.update.status')
   async updateStatusEvent(
     data: { status: StatusEvent, eventId: number }
   ) {
-    const { status, eventId } = data;
-    const room = `room:${eventId}:waiting`;
-    const toRoom = `room:${eventId}`;
-    if (status === StatusEvent.NOW) {
-      //* Iniciar sala
+    const { status, eventId: roomId } = data;
+    const room = `${this.joinKeyRoom}:${roomId}:waiting`;
+    const toRoom = `${this.joinKeyRoom}:${roomId}`;
 
-      //* Cambiar de sala
-      this.eventServ.moveToRoom(room, toRoom).subscribe();
+    if (status === StatusEvent.NOW) {
+      this.server.to(room).emit(room, status);
+      this.connectedPlayers(toRoom);
+      //* Cambiar de sala en ws
       this.moveRoom(room, toRoom);
       this.moveRoom(`${room}:countUsers`, `${toRoom}:countUsers`);
     } else if (status === StatusEvent.COMPLETED) {
@@ -147,15 +146,16 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   @SubscribeMessage('disconnectRoom')
   handleDisconnectRoom(
-    @MessageBody() room: number, 
+    @MessageBody() roomId: number, 
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { userId } = client.user;
-    const name = `room:${room}`;
-    client.leave(`${name}:waiting`);
-    client.leave(`${name}:waiting:countUsers`);
-    client.leave(name);
-    client.leave(`${name}:countUsers`);
+    const room = `${this.joinKeyRoom}:${roomId}`;
+
+    client.leave(`${room}:waiting`);
+    client.leave(`${room}:waiting:countUsers`);
+    client.leave(room);
+    client.leave(`${room}:countUsers`);
 
     this.deleteUserRoom(userId, client.id);
   }
@@ -173,7 +173,6 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
       element.leave(currentRoom);
       element.join(toRoom);   
     });
-    this.connectedPlayers(toRoom);
   }
 
   async deleteRoom(room: string) {

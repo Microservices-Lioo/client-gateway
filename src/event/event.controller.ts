@@ -43,17 +43,15 @@ export class EventController {
     @Body() updateStatus: UpdateStatusEventDto,
     @CurrentUser() user: User
   ) {
-    this.eventEmitter.emit('event.update.status', 
-      { status: StatusEvent.NOW, eventId: eventId });
-    return { message: 'Evento emitido con éxito', ok: true };
-    // return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
-    // .pipe(
-    //   tap((value) => {
-    //     console.log('data: ' + JSON.stringify(value));
-    //     this.clientEvent.emit('event.update.status', value.status);
-    //   }),
-    //   catchError(error => { throw new RpcException(error) })
-    // );
+    return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
+    .pipe(
+      tap((value) => {
+        if (value && value.status) {
+          this.eventEmitter.emit('event.update.status', { status: value.status, eventId: eventId });
+        }
+      }),
+      catchError(error => { throw new RpcException(error) })
+    );
   }
 
   @Delete(':id')

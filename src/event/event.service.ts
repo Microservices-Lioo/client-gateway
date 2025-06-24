@@ -35,12 +35,6 @@ export class EventService {
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    moveToRoom(keyOrigin: string, keyDestination: string): Observable<true> {
-        return this.clientEvent
-            .send('moveToRoom', { keyOrigin: keyOrigin, keyDestination: keyDestination })
-            .pipe(catchError(error => { throw new RpcException(error) }));
-    }
-
     deleteRoom(key: string): Observable<void> {
         return this.clientEvent.send('deleteRoom', key)
             .pipe(catchError(error => { throw new RpcException(error) }));
