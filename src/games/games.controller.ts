@@ -29,6 +29,12 @@ export class GamesController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
+  @Get('/event/:eventId')
+  dataGame(@Param('eventId', ParseIntPipe) eventId: number) {
+    return this.client.send('dataGame', eventId )
+      .pipe(catchError( error => { throw new RpcException(error)}));
+  }
+
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() updateGameDto: UpdateGameDto) {
     return this.client.send('updateGame', { id, ...updateGameDto })
