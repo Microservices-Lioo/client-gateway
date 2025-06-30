@@ -1,8 +1,24 @@
 import { PartialType } from "@nestjs/mapped-types";
 import { CreateAwardDto } from "./create-award.dto";
-import { IsNumber } from "class-validator";
+import { IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from "class-validator";
 
 export class UpdateAwardDto extends PartialType(CreateAwardDto) {
     @IsNumber()
-    eventId: number;
+    @IsPositive()
+    id: number;
+
+    @IsOptional()
+    @IsNumber()
+    @IsPositive()
+    gameId: number;
+
+    @IsOptional()
+    @IsNumber()
+    @IsPositive()
+    num_award: number;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    winner_user: string;
 }

@@ -4,6 +4,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { envs, GAME_SERVICE } from 'src/config';
 import { GameModeController } from './game-mode.controller';
 import { RuleController } from './rules.controller';
+import { GamesService } from './games.service';
 
 @Module({
   imports: [
@@ -19,6 +20,6 @@ import { RuleController } from './rules.controller';
     ])
   ],
   controllers: [GamesController, GameModeController, RuleController],
-  providers: [],
+  providers: [GamesService],
 })
 export class GamesModule {}

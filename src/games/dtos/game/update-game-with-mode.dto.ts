@@ -1,8 +1,8 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { CreateGameDto } from './create-game.dto';
 import { IsDate, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { createGameWithModeDto } from './create-game-with-mode.dto';
 
-export class UpdateGameDto extends PartialType(CreateGameDto) {
+export class UpdateGameWithModeDto extends PartialType(createGameWithModeDto) {
   @IsNumber()
   @IsNotEmpty()
   id: number;

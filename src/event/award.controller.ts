@@ -3,9 +3,11 @@ import { ClientProxy, RpcException } from "@nestjs/microservices";
 import { AUTH_SERVICE, EVENT_SERVICE } from "src/config";
 import { JwtAuthGuard } from "src/guards";
 import { CreateAwardDto, UpdateAwardDto } from "./common";
-import { catchError, forkJoin, map, of, switchMap } from "rxjs";
+import { catchError, firstValueFrom, forkJoin, map, of, switchMap, timeout } from "rxjs";
 import { CurrentUser } from "src/common";
 import { User } from "src/auth/entities";
+import { OnEvent } from "@nestjs/event-emitter";
+import { EventErrorInterceptor } from "src/common";
 
 @Controller('award')
 export class AwardController {
@@ -13,6 +15,7 @@ export class AwardController {
     constructor(
         @Inject(AUTH_SERVICE) private readonly clientAuth: ClientProxy,
         @Inject(EVENT_SERVICE) private readonly clientAward: ClientProxy,
+        private readonly eventErrorInterceptor: EventErrorInterceptor
     ) { }
 
     @Post()
@@ -83,6 +86,33 @@ export class AwardController {
     ) {
         return this.clientAward.send('updateAward', { ...updateAwardDto, id })
         .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    @OnEvent('award.update', { async: true})
+    async handleUpdate(
+        updateAwardDto: UpdateAwardDto        
+    ) {
+        try {
+            return await firstValueFrom(
+                this.clientAward.send('updateAward', updateAwardDto)
+                    .pipe(
+                        timeout(5000),
+                        catchError(error => {
+                            // Error del microservicio - convertir a valor manejable
+                            console.error('Microservice error in award update:', error);
+                            return of({ success: false, error: error.message });
+                        })
+                    )
+            );
+        } catch (error) {
+            // Error en el event handler - usar interceptor
+            this.eventErrorInterceptor.handleEventError(
+                error, 
+                'award.update', 
+                updateAwardDto
+            );
+            return { success: false, error: 'Event processing failed' };
+        }
     }
 
     @Delete(':id')

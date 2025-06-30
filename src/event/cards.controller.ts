@@ -64,6 +64,16 @@ export class CardsController {
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  @Get('/buyer/event/:eventId')
+  @UseGuards(JwtAuthGuard)
+  findToEventByBuyer(
+    @Param('eventId', ParseIntPipe) eventId: number,
+    @CurrentUser() user: User
+  ){
+    return this.clientCards.send('findToEventByBuyer', { buyer: user.id, eventId})
+    .pipe(catchError( error => { throw new RpcException(error)} ));
+  }
+
   @Patch('available/:cardId')
   @UseGuards(JwtAuthGuard)
   updateAvailable(

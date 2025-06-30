@@ -6,6 +6,7 @@ import { CustomException } from 'src/common';
 import { CardsController } from './cards.controller';
 import { AwardController } from './award.controller';
 import { EventService } from './event.service';
+import { EventErrorInterceptor } from 'src/common';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { EventService } from './event.service';
     ])
   ],
   controllers: [EventController, CardsController, AwardController],
-  providers: [CustomException, EventService],
+  providers: [CustomException, EventService, EventErrorInterceptor],
   exports: [EventService]
 })
 export class EventModule { }
