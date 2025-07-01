@@ -25,12 +25,12 @@ export class EventService {
     joinRoom(
         key: string, 
         data: { userId: number, socketId: string }
-    ) {
+    ): Observable<boolean> {
         return this.clientEvent.send('joinRoom', { key, data})
-            .pipe(catchError(error => { throw new RpcException(error) })).subscribe();
+            .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    countUsersRoom(key: string): Observable<number> {
+    countUsersRoom(key: string): Observable<number | null> {
         return this.clientEvent.send('countUsersRoom', key)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }

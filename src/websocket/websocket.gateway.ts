@@ -69,8 +69,10 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
           client.disconnect();
         } else {
           client.join(joinRoom);
-          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id });
-          this.connectedPlayers(joinRoom); 
+          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id })
+            .subscribe( (_) => {
+              this.connectedPlayers(joinRoom); 
+            });
         }
       },
       error: (error) => {
