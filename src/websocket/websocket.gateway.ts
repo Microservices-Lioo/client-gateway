@@ -16,6 +16,7 @@ import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket
 import { WsExceptionFilter } from './exceptions/ws.exception';
 import { OnEvent } from '@nestjs/event-emitter';
 import { StatusEvent } from 'src/event/common';
+import { CalledBallI } from './dtos/called-ball.interface';
 
 @WebSocketGateway(
   { 
@@ -187,6 +188,13 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
         this.connectedPlayers(room);
       }
     });
+  }
+
+  @OnEvent('raffle.number.called', { async: true})
+  async ballsCalledRoomWs(payload: {eventId: number, calledBall: CalledBallI}) {
+    const {eventId, calledBall} = payload;
+    const joinRoom = `${this.joinKeyRoom}:${eventId}`;
+    this.server.to(joinRoom).emit(`${joinRoom}:calledBall`, calledBall);
   }
 
 }

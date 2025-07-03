@@ -5,6 +5,7 @@ import { envs, GAME_SERVICE } from 'src/config';
 import { GameModeController } from './game-mode.controller';
 import { RuleController } from './rules.controller';
 import { GamesService } from './games.service';
+import { BallCalledController } from './balls-called.controller';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { GamesService } from './games.service';
       }
     ])
   ],
-  controllers: [GamesController, GameModeController, RuleController],
+  controllers: [GamesController, GameModeController, RuleController, BallCalledController],
   providers: [GamesService],
 })
 export class GamesModule {}

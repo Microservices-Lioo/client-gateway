@@ -1,3 +1,4 @@
+export * from './called-ball.interface';
 export * from './game-mode.entity';
 export * from './game-on-mode.entity';
 export * from './game.entity';
