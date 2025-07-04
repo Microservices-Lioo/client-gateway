@@ -9,7 +9,7 @@ import {
   WebSocketServer 
 } from '@nestjs/websockets';
 import { Logger, UseFilters } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 import { EventService } from 'src/event/event.service';
 import { envs } from 'src/config';
 import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket-auth.middleware';
@@ -17,6 +17,9 @@ import { WsExceptionFilter } from './exceptions/ws.exception';
 import { OnEvent } from '@nestjs/event-emitter';
 import { StatusEvent } from 'src/event/common';
 import { CalledBallI } from './dtos/called-ball.interface';
+import { RoomState } from './interfaces/room-status.interface';
+import { WsConst } from './consts/ws.const';
+import { WsEnum } from './enums/ws.enum';
 
 @WebSocketGateway(
   { 
@@ -29,7 +32,10 @@ import { CalledBallI } from './dtos/called-ball.interface';
 )
 @UseFilters(WsExceptionFilter)
 export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
-  joinKeyRoom = 'room';
+  private countDuration: number = 30;
+  // private counterInterval: NodeJS.Timeout | null = null;
+
+  private rooms: Map<string, RoomState> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -59,25 +65,32 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { userId } = client.user;
-    const joinRoom = `${this.joinKeyRoom}:${room}`;
+    const joinRoom = WsConst.keyRoom(room);
 
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
     .subscribe({
       next: (exists) => {
         if (!exists) {
-          client.emit('unauthorized', { message: 'No perteneces al evento' });
+          client.emit(WsEnum.UNAUTHORIZED, { message: 'No perteneces al evento' });
           client.disconnect();
         } else {
           client.join(joinRoom);
           this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id })
-            .subscribe( (_) => {
-              this.connectedPlayers(joinRoom); 
-            });
+          .subscribe( (_) => {
+            this.connectedPlayers(joinRoom);
+          });
+
+          if (!this.rooms.has(joinRoom)) {
+            this.rooms.set(joinRoom, {
+              isCounterActive: false,
+              counter: 0
+            })
+          }
         }
       },
       error: (error) => {
-        client.emit('unauthorized', { message: 'Error de validación: ' + error.message });
+        client.emit(WsEnum.UNAUTHORIZED, { message: 'Error de validación: ' + error.message });
       }
     });    
   }
@@ -88,14 +101,14 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket
   ) {
     const { userId } = client.user;
-    const joinRoom = `${this.joinKeyRoom}:${room}:waiting`;
+    const joinRoom = WsConst.keyRoomWaiting(room);
     
     //* Validacion si el usuario pertenece al evento
     this.eventServ.verifyAParticipatingUserEvent(room, userId)
     .subscribe({
       next: (exists) => {
         if (!exists) {
-          client.emit('unauthorized', { message: 'No perteneces al evento' });
+          client.emit(WsEnum.UNAUTHORIZED, { message: 'No perteneces al evento' });
           client.disconnect();
         } else {
           client.join(joinRoom);
@@ -105,7 +118,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
         }
       },
       error: (error) => {
-        client.emit('unauthorrized', { message: 'Error de validación: ' + error.message });
+        client.emit(WsEnum.UNAUTHORIZED, { message: 'Error de validación: ' + error.message });
       }
     });
   }
@@ -114,7 +127,14 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     this.eventServ.countUsersRoom(joinRoom).subscribe({
       next: (countUsers) => {
         if (countUsers) {
-          this.server.to(joinRoom).emit(`${joinRoom}:countUsers`, countUsers);
+          this.server.to(joinRoom).emit(
+            WsConst.keyRoomCountUsers(joinRoom),
+            countUsers
+          );
+        }
+
+        if (countUsers == 0) {
+          this.leaveRoom(joinRoom);
         }
       }
     });
@@ -129,21 +149,22 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     data: { status: StatusEvent, eventId: number }
   ) {
     const { status, eventId: roomId } = data;
-    const room = `${this.joinKeyRoom}:${roomId}:waiting`;
-    const toRoom = `${this.joinKeyRoom}:${roomId}`;
+    const room = WsConst.keyRoomWaiting(roomId);
+    const toRoom = WsConst.keyRoom(roomId);
 
     if (status === StatusEvent.NOW) {
       this.server.to(room).emit(room, status);
       this.connectedPlayers(toRoom);
       //* Cambiar de sala en ws
       this.moveRoom(room, toRoom);
-      this.moveRoom(`${room}:countUsers`, `${toRoom}:countUsers`);
-    } else if (status === StatusEvent.COMPLETED) {
+      this.moveRoom(WsConst.keyRoomCountUsers(room), 
+        WsConst.keyRoomCountUsers(toRoom));
 
+    } else if (status === StatusEvent.COMPLETED) {
       //* Elimnar sala
       this.deleteRoom(toRoom);
       this.disconnectedRoom(toRoom);
-      this.disconnectedRoom(`${toRoom}:countUsers`);
+      this.disconnectedRoom(WsConst.keyRoomCountUsers(toRoom));
     }
   }
 
@@ -153,12 +174,13 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { userId } = client.user;
-    const room = `${this.joinKeyRoom}:${roomId}`;
+    const room = WsConst.keyRoom(roomId);
+    const roomWaiting = WsConst.keyRoomWaiting(roomId);
 
-    client.leave(`${room}:waiting`);
-    client.leave(`${room}:waiting:countUsers`);
+    client.leave(roomWaiting);
+    client.leave(WsConst.keyRoomCountUsers(roomWaiting));
     client.leave(room);
-    client.leave(`${room}:countUsers`);
+    client.leave(WsConst.keyRoomCountUsers(room));
 
     this.deleteUserRoom(userId, client.id);
   }
@@ -190,11 +212,77 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     });
   }
 
+  leaveRoom(roomKey: string) {
+    const room = this.rooms.get(roomKey);
+
+    if (room) {
+      if (room.counterId) {
+        clearInterval(room.counterId);
+      }
+      this.rooms.delete(roomKey);
+    }
+  }
+
+  startCounter(
+    roomId: number,
+  ) {
+    const nameKeyRoom = WsConst.keyRoom(roomId);
+
+    const room = this.rooms.get(nameKeyRoom);
+
+    if (!room || room.isCounterActive) {
+      return;
+    }
+
+    room.isCounterActive = true;
+    room.counter = this.countDuration;
+
+    this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_STARTED, {
+      counter: room.counter,
+      isCounterActive: true
+    });
+
+    room.counterId = setInterval(() => {
+      room.counter--;
+
+      this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_UPDATE, {
+        isCounterActive: true,
+        counter: room.counter,
+      });
+
+      if (room.counter <= 0) {
+        this.stopCounter(roomId);
+      }
+    }, 1000) 
+  }
+
+  stopCounter(roomId: number) {
+    const nameKeyRoom = WsConst.keyRoom(roomId);
+    const room = this.rooms.get(nameKeyRoom);
+
+    if (!room) return;
+
+    if (room.counterId) {
+      clearInterval(room.counterId);
+      room.counterId = undefined;
+    }
+
+    room.isCounterActive = false;
+    room.counter = 0;
+
+    this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_FINISHED, {
+      isCounterActive: false,
+      counter: 0,
+    });
+  }
+
   @OnEvent('raffle.number.called', { async: true})
   async ballsCalledRoomWs(payload: {eventId: number, calledBall: CalledBallI}) {
     const {eventId, calledBall} = payload;
-    const joinRoom = `${this.joinKeyRoom}:${eventId}`;
-    this.server.to(joinRoom).emit(`${joinRoom}:calledBall`, calledBall);
+    const room = WsConst.keyRoom(eventId);
+
+    this.server.to(room).emit(WsConst.keyRoomCalledBall(room), calledBall);
+    this.startCounter(eventId);
   }
 
 }

@@ -3,7 +3,7 @@ import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { CurrentUser, PaginationDto } from 'src/common';
 import { EVENT_SERVICE } from 'src/config';
-import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto } from './common';
+import { CheckOrUncheckDto, CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto } from './common';
 import { JwtAuthGuard } from 'src/guards';
 import { User } from 'src/auth/entities';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -101,5 +101,16 @@ export class CardsController {
   ){
     return this.clientCards.send('getCardCountForUserAndEvent', { buyer: user.id, eventId})
     .pipe(catchError( error => { throw new RpcException(error)} ));
+  }
+
+  @Post('/check-or.uncheck/:cardId')
+  @UseGuards(JwtAuthGuard)
+  checkOrUncheckBox(
+    @Param('cardId', ParseIntPipe) cardId: number,
+    @Body() checkOrUncheckDto: CheckOrUncheckDto,
+    @CurrentUser() user: User
+  ) {
+    return this.clientCards.send('checkOrUncheckBox', { ...checkOrUncheckDto, cardId, userId: user.id })
+      .pipe(catchError(error => { throw new RpcException(error)}));
   }
 }

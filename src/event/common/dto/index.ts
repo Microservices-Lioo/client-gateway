@@ -1,3 +1,4 @@
+export * from './check-uncheck.dto';
 export * from './create-award.dto';
 export * from './create-card.dto';
 export * from './create-event.dto';
