@@ -285,4 +285,43 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     this.startCounter(eventId);
   }
 
+  @SubscribeMessage('sing')
+  handleSongs(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    const { roomId,  } = data;
+    const { userId, name, lastname } = client.user;
+    const keyRoom = WsConst.keyRoom(roomId);
+
+    const room = this.rooms.get(keyRoom);
+
+    if (!room) {
+      client.emit(WsEnum.ERROR,'Sala no existe');
+      return;
+    }
+
+    if (!room.songs) room.songs = [];
+
+    let date = new Date();
+    const hour = `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+    const sing = { 
+      id: client.id, 
+      userId, 
+      fullnames: `${name} ${lastname}`,
+      hour
+    }
+
+    room.songs.forEach(sing => {
+      if (sing.userId === userId) {
+        client.emit(WsEnum.ERROR,'Ya has cantado bingo, espera mientras el administrador te revisa');
+        return;
+      }
+    });
+
+    room.songs.push(sing);
+
+    this.server.to(keyRoom).emit('songs', sing);
+  }
+
 }
