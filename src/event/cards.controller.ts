@@ -74,6 +74,17 @@ export class CardsController {
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
+  @Get(':id/:buyer/:eventId')
+  @UseGuards(JwtAuthGuard)
+  findOneByIdBuyerEvent(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('buyer', ParseIntPipe) buyer: number,
+    @Param('eventId', ParseIntPipe) eventId: number,
+  ) {
+    return this.clientCards.send('findOneByIdBuyerEvent', { id, buyer, eventId })
+    .pipe(catchError( error => { throw new RpcException(error)} ));
+  }
+
   @Patch('available/:cardId')
   @UseGuards(JwtAuthGuard)
   updateAvailable(

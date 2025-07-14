@@ -17,7 +17,7 @@ import { WsExceptionFilter } from './exceptions/ws.exception';
 import { OnEvent } from '@nestjs/event-emitter';
 import { StatusEvent } from 'src/event/common';
 import { CalledBallI } from './dtos/called-ball.interface';
-import { RoomState } from './interfaces/room-status.interface';
+import { RoomState, StatusSing } from './interfaces/room-status.interface';
 import { WsConst } from './consts/ws.const';
 import { WsEnum } from './enums/ws.enum';
 
@@ -33,7 +33,6 @@ import { WsEnum } from './enums/ws.enum';
 @UseFilters(WsExceptionFilter)
 export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private countDuration: number = 30;
-  // private counterInterval: NodeJS.Timeout | null = null;
 
   private rooms: Map<string, RoomState> = new Map();
 
@@ -79,6 +78,14 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
           this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id })
           .subscribe( (_) => {
             this.connectedPlayers(joinRoom);
+            if (this.rooms.has(joinRoom)) {
+              const room = this.rooms.get(joinRoom);
+              if (room.songs && room.songs.length > 0) {
+                room.songs.forEach(sing => {
+                  client.emit('songs', sing);
+                });
+              }
+            }      
           });
 
           if (!this.rooms.has(joinRoom)) {
@@ -287,10 +294,10 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   @SubscribeMessage('sing')
   handleSongs(
-    @MessageBody() data: any,
+    @MessageBody() data: { roomId: number, cardId: number },
     @ConnectedSocket() client: AuthenticatedSocket
   ) {
-    const { roomId,  } = data;
+    const { roomId, cardId  } = data;
     const { userId, name, lastname } = client.user;
     const keyRoom = WsConst.keyRoom(roomId);
 
@@ -307,21 +314,112 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const hour = `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
     const sing = { 
       id: client.id, 
-      userId, 
+      userId,
+      cardId,
+      eventId: roomId,
       fullnames: `${name} ${lastname}`,
-      hour
+      hour,
+      status: StatusSing.PENDING
     }
-
-    room.songs.forEach(sing => {
-      if (sing.userId === userId) {
-        client.emit(WsEnum.ERROR,'Ya has cantado bingo, espera mientras el administrador te revisa');
-        return;
-      }
+    
+    const exist =  new Promise<boolean>((resolve, _) => {
+      room.songs.forEach(sing => {
+        if (sing.userId === userId) {
+          resolve(true);
+          return;
+        }
+      });
+      resolve(false)
     });
 
-    room.songs.push(sing);
+    exist.then(val => {
+      if (val) {
+        client.emit(WsEnum.ERROR,'Ya has cantado bingo, espera mientras el administrador te revisa');
+        return;
+      } else {
+        room.songs.push(sing);
+        this.rooms.set(keyRoom, room);
+        this.server.to(keyRoom).emit('songs', sing);
+      }
+    });
+  }
 
-    this.server.to(keyRoom).emit('songs', sing);
+  @SubscribeMessage('verify-sing')
+  handleVeirfySongs(
+    @MessageBody() data: { roomId: number, cardId: number, status: StatusSing, userId: number },
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    const {roomId, cardId, status, userId} = data;
+    if (!roomId || !cardId || !status) {
+      client.emit(WsEnum.ERROR,'No se recibieron los datos necesarios para verificar el canto');
+      return;
+    }
+    const keyRoom = WsConst.keyRoom(roomId);
+
+    try {
+      const room = this.rooms.get(keyRoom);
+
+      if (!room) {
+        client.emit(WsEnum.ERROR,'Sala no existe');
+        return;
+      }
+
+      if (!room.songs) {
+        client.emit(WsEnum.ERROR,'No existe ningun canto');
+        return;
+      }
+
+      const singPosition = room.songs.findIndex(song => song.userId == userId && song.eventId == roomId && song.cardId == cardId);
+
+      if (singPosition == -1) {
+        client.emit(WsEnum.ERROR,'No existe ningun canto de este jugador');
+        return;
+      }
+
+      const sing = room.songs[singPosition];
+      sing.status = status;
+      room.songs[singPosition] = sing;
+      this.rooms.set(keyRoom, room);
+      this.server.to(keyRoom).emit('songs', sing);
+    } catch(error) {
+      this.server.to(keyRoom).emit(WsEnum.ERROR, 'Ocurrio un error al actualizar el canto del juagdor');
+    }
+  }
+
+  @SubscribeMessage('delete-all-songs')
+  handleDeleteAllSongs(
+    @MessageBody() data: { roomId: number },
+    @ConnectedSocket() client: AuthenticatedSocket
+  ) {
+    const {roomId} = data;
+    if (!roomId) {
+      client.emit(WsEnum.ERROR,'No se recibieron los datos necesarios para verificar el canto');
+      return;
+    }
+
+    const keyRoom = WsConst.keyRoom(roomId);
+
+    try {
+      const room = this.rooms.get(keyRoom);
+      if (!room) {
+        client.emit(WsEnum.ERROR,'Sala no existe');
+        return;
+      }
+
+      if (!room.songs) {
+        return;
+      }
+
+      const songs = room.songs.filter(sing => sing.status != StatusSing.REJECTED);
+
+      room.songs = songs;
+      this.rooms.set(keyRoom, room);
+
+      this.server.to(keyRoom).emit('delete-songs', songs);
+      
+    } catch (error) {
+      this.server.to(keyRoom).emit(WsEnum.ERROR, 'Ocurrio un error al eliminar los cantos');
+    }
   }
 
 }
