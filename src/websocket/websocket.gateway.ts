@@ -324,7 +324,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     
     const exist =  new Promise<boolean>((resolve, _) => {
       room.songs.forEach(sing => {
-        if (sing.userId === userId) {
+        if (sing.userId === userId && sing.cardId == cardId) {
           resolve(true);
           return;
         }
