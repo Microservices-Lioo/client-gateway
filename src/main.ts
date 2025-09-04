@@ -2,9 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { envs } from './config';
 import { Logger, ValidationPipe } from '@nestjs/common';
-import { ExceptionFilter } from './common';
 import * as cookieParser from 'cookie-parser';
-import { raw } from 'express';
+import { RcpExceptionFilter } from './common/exceptions';
 
 async function bootstrap() {
   const logger = new Logger('Main-Gateway');
@@ -24,10 +23,8 @@ async function bootstrap() {
       forbidUnknownValues: true
     })   
   );
-
-  app.useGlobalFilters(new ExceptionFilter())
+  app.useGlobalFilters(new RcpExceptionFilter())
   
-  app.use('/orders/webhookStripe', raw({ type: 'application/json' }))
   app.setGlobalPrefix('api');
 
   await app.listen(envs.PORT);

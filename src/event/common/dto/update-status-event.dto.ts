@@ -4,7 +4,7 @@ import { StatusEvent } from "../enums";
 export class UpdateStatusEventDto {
   @IsOptional()
   @IsEnum(StatusEvent, {
-    message: 'The status must be one of the following: TODAY, NOW, PROGRAMMED, COMPLETED'
+    message: 'El status debe ser uno los siguientes: TODAY, NOW, PROGRAMMED, COMPLETED'
   })
   status: StatusEvent;
 }

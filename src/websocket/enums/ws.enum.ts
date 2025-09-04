@@ -8,4 +8,6 @@ export enum WsEnum {
     COUNTER_STARTED = 'counterStarted',
     COUNTER_UPDATE = 'counterUpdate',
     COUNTER_FINISHED = 'counterFinished',
+    TIEBREAKER_WINNER = 'tie-breaker-winner',
+    WINNER = 'winner',
 }

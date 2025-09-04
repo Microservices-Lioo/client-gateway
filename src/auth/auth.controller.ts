@@ -1,87 +1,104 @@
-import { Controller, Get, Post, Body, Param, Delete, Inject, ParseIntPipe, UseGuards, Put, Request, UnauthorizedException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Inject, UseGuards, Patch, Logger } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { AUTH_SERVICE } from 'src/config';
-import { LoginAuthDto, RegisterAuthDto, UpdateAuthDto } from './dto';
-import { catchError } from 'rxjs';
-import { JwtAuthGuard } from 'src/guards';
-import { CurrentUser, CustomException } from 'src/common';
+import { NATS_SERVICE } from 'src/config';
+import { AccessTokenDto, LoginAuthDto, RefreshTokenDto, RegisterAuthDto, UpdateAuthDto } from './dto';
+import { catchError, firstValueFrom } from 'rxjs';
+import { AuthGuard } from './guards';
 import { User } from './entities';
+import { Token } from 'src/common/decorators/token.decorator';
+import { CurrentUser } from 'src/common/decorators';
+import { IdDto, EmailDto } from 'src/common/dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(
-    @Inject(AUTH_SERVICE) private readonly clientAuth: ClientProxy,
-    private readonly customException: CustomException
-  ) {}
 
+  constructor(
+    @Inject(NATS_SERVICE) private readonly client: ClientProxy,
+  ) { }
+
+  //* Registrar un usuario
   @Post('sign-up')
   register(@Body() registerAuthDto: RegisterAuthDto) {
-    return this.clientAuth.send('registerAuth', registerAuthDto)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    return this.client.send('registerAuth', registerAuthDto)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Iniciar sesión
   @Post('log-in')
   login(@Body() loginAuthDto: LoginAuthDto) {
-    return this.clientAuth.send('loginAuth', loginAuthDto)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    return this.client.send('loginAuth', loginAuthDto)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('update-info-token')
-  @UseGuards(JwtAuthGuard)
-  updateInfoToken(@CurrentUser()  user: User ) {
-    const userId = user.id;
-    return this.clientAuth.send('updateInfoTokenAuth', userId )
-      .pipe(catchError( error => { throw new RpcException(error) }));
-  }
-
-  @Post('refresh-token')
-  refreshTkn(@Body('refresh_token') refresh_token: string) {
-    return this.clientAuth.send('refreshAuth', refresh_token)
-    .pipe(catchError( error => { throw new RpcException(error) }));
-  }
-
+  //* Verificar token de usuario
   @Post('verify-token')
-  @UseGuards(JwtAuthGuard)
-  verifyTokenAuth(@Body('access_token') access_token: string) {
-    return this.clientAuth.send('verifyTokenAuth', access_token)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+  @UseGuards(AuthGuard)
+  verifyTokenAuth(@Token() dto: AccessTokenDto) {
+    const {access_token} = dto;
+    return this.client.send('verifyTokenAuth', access_token)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get(':id')
+  //* Renovar token obsoleto
+  @Post('refresh-token')
+  refreshTkn(@Body() dto: RefreshTokenDto) {
+    const {refresh_token} = dto;
+    return this.client.send('refreshTokenAuth', refresh_token)
+      .pipe(catchError(error => { throw new RpcException(error) }));
+  }
+
+  //* Obtener un usuario por id
+  @Get('id/:id')
   findOneUser(
-    @Param('id', ParseIntPipe) id: number) {
-    return this.clientAuth.send('findOneUser', id)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    @Param() idDto: IdDto) {
+      const { id } = idDto;
+    return this.client.send('findOneUser', id)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('email')
-  @UseGuards(JwtAuthGuard)
+  //* Obtener un usuario por email
+  @Get('email/:email')
+  @UseGuards(AuthGuard)
   findOneUserEmail(
-    @Param('email') email: string) {
-    return this.clientAuth.send('findOneUserEmail', email)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    @Param() emailDto: EmailDto) {
+      const { email } = emailDto;
+    return this.client.send('findOneUserEmail', email)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Put(':id')
-  @UseGuards(JwtAuthGuard)
-  updateUser(
-    @Param('id', ParseIntPipe) id: number, 
-    @Body() updateAuthDto: UpdateAuthDto, 
+  //* Actualizar un usuario por id
+  @Patch(':id')
+  @UseGuards(AuthGuard)
+  async updateUser(
+    @Param() idDto: IdDto,
+    @Body() updateAuthDto: UpdateAuthDto,
     @CurrentUser() user: User
   ) {
-    this.customException.validateUserId(user.id, id);    
-    return this.clientAuth.send('updateUser', { ...updateAuthDto, email: user.email, id: user.id })
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    const { id } = idDto;
+    const newUser: User = await firstValueFrom( 
+      this.client.send('updateUser', { ...updateAuthDto, email: user.email, id })
+      .pipe(catchError(error => { throw new RpcException(error) }))
+    );
+
+    const { access_token, refresh_token } = await firstValueFrom(
+      this.client.send('updateTokenInfo', newUser)
+      .pipe(catchError(error => { throw new RpcException(error) }))
+    );
+
+    return {
+      user: newUser,
+      access_token,
+      refresh_token
+    }
   }
 
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  //* Eliminar un usuario
+  @Delete()
+  @UseGuards(AuthGuard)
   removeUser(
-    @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: User
   ) {
-    this.customException.validateUserId(user.id, id);
-    return this.clientAuth.send('removeUser', id)
-    .pipe(catchError( error => { throw new RpcException(error) }));
+    return this.client.send('removeUser', user.id)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 }

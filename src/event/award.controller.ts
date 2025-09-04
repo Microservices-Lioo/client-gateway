@@ -1,126 +1,123 @@
-import { Body, Controller, Delete, Get, Inject, Param, ParseIntPipe, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Patch, Post, UseGuards } from "@nestjs/common";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
-import { AUTH_SERVICE, EVENT_SERVICE } from "src/config";
-import { JwtAuthGuard } from "src/guards";
-import { CreateAwardDto, UpdateAwardDto } from "./common";
-import { catchError, firstValueFrom, forkJoin, map, of, switchMap, timeout } from "rxjs";
-import { CurrentUser } from "src/common";
-import { User } from "src/auth/entities";
+import { NATS_SERVICE } from "src/config";
+import { AuthGuard } from "../auth/guards";
+import { catchError, firstValueFrom, of, timeout } from "rxjs";
 import { OnEvent } from "@nestjs/event-emitter";
-import { EventErrorInterceptor } from "src/common";
+import { CreateAwardDto, UpdateAwardDto } from "./common/dto";
+import { IAward, ICard } from "./common/interfaces";
+import { IUser } from "src/common/interfaces";
+import { EventErrorInterceptor } from "src/common/interceptors";
+import { IdDto } from "src/common/dto";
 
 @Controller('award')
 export class AwardController {
 
     constructor(
-        @Inject(AUTH_SERVICE) private readonly clientAuth: ClientProxy,
-        @Inject(EVENT_SERVICE) private readonly clientAward: ClientProxy,
+        @Inject(NATS_SERVICE) private readonly client: ClientProxy,
         private readonly eventErrorInterceptor: EventErrorInterceptor
     ) { }
 
+    //* Crear un nuevo premio
     @Post()
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(AuthGuard)
     create(
         @Body() createAwardDto: CreateAwardDto,
-        @CurrentUser() user: User
     ) {
-        return this.clientAward.send('createAward', { createAwardDto, userId: user.id })
+        return this.client.send('createAward', createAwardDto)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    @Post('multi')
-    @UseGuards(JwtAuthGuard)
-    createMulti(
+    //* Crear muchos premio
+    @Post('many')
+    @UseGuards(AuthGuard)
+    createMany(
         @Body() createAwardDto: CreateAwardDto[],
-        @CurrentUser() user: User
     ) {
-        return this.clientAward.send('createMultiAward', { createAwardDto, userId: user.id })
+        return this.client.send('createAwards', createAwardDto)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    @Get('event/:eventId')
-    @UseGuards(JwtAuthGuard)
-    findAllByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
-        return this.clientAward.send('findAllByEventAward', eventId)
-            .pipe(catchError(error => { throw new RpcException(error) }));
-    }
-
-    @Get('winners/:eventId')
-    @UseGuards(JwtAuthGuard)
-    findAllWinnersByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
-        return this.clientAward.send<number[]>('findAllWinnersByEventAward', eventId)
-            .pipe(
-                catchError(error => { throw new RpcException(error) }),
-                switchMap((userIds: number[]) => {
-                    if (!userIds || userIds.length === 0) return of([]);
-
-                    const existWinners = userIds.filter(userId => userId != null);
-                    if (existWinners.length === 0) return of([]);
-                    
-                    const userObservables = existWinners.map(
-                        (userId) => this.clientAuth.send('findOneUser', { id: userId})
-                            .pipe(catchError(error => { return of(null); }))
-                    );
-
-                    return forkJoin(userObservables)
-                        .pipe(map((users) => {
-                            return users.filter(user => user != null);
-                        }));
-                }),
-                catchError(error => { throw new RpcException(error) })
-            );
-    }
-
+    //* Obtener un premio
     @Get(':id')
-    @UseGuards(JwtAuthGuard)
-    findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.clientAward.send('findOneAward', id)
-        .pipe(catchError(error => { throw new RpcException(error) }));
+    @UseGuards(AuthGuard)
+    findOne(@Param('id', ParseUUIDPipe) id: string) {
+        return this.client.send('findOneAward', { id })
+            .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
+    //* Obtener todos los premios por un evento id
+    @Get('event/:eventId')
+    findAllByEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
+        return this.client.send('findAllByEventAward', eventId)
+            .pipe(catchError(error => { throw new RpcException(error) }));
+    }
+
+    //* Obetener todos los ganadores de un evento id
+    @Get('winners/:eventId')
+    @UseGuards(AuthGuard)
+    async findAllWinnersByEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
+        // Obtengo los premios ganados
+        const awards: IAward[] = await firstValueFrom(
+            this.client.send<IAward[]>('findAllWinnersByEventAward', eventId)
+                .pipe(catchError(error => { throw new RpcException(error) })
+                ));
+
+        // Obtengo los id de las tablas ganadores
+        const cardIds: string[] = awards.map(award => award.winner)
+        const ids = [...new Set(cardIds)];
+
+        // Obtengo los ids de los usuario ganadores
+        const buyers: { id: string, buyer: string }[] = await firstValueFrom(
+            this.client.send<{ id: string, buyer: string }[]>('findAllIdsCard', ids)
+                .pipe(catchError(error => { throw new RpcException(error) })
+                ));
+
+        const userIds: string[] = buyers.map(buyer => buyer.buyer);
+
+        // Obtengo los datos de los ganadores
+        const users: IUser[] = await firstValueFrom(
+            this.client.send<IUser[]>('findAllIdsUser', [...new Set(userIds)])
+                .pipe(catchError(error => { throw new RpcException(error) })
+                ));
+
+        return awards.map(award => ({
+            award: award,
+            user: users.find((user) => {
+                const buyer = buyers.find(buyer => buyer.id === award.winner);
+                return buyer.buyer === user.id
+            })
+        }));
+    }
+
+    //* Actualizar un premio
     @Patch(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(AuthGuard)
     update(
-        @Param('id', ParseIntPipe) id: number,
-        @Body() updateAwardDto: UpdateAwardDto        
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() updateAwardDto: UpdateAwardDto
     ) {
-        return this.clientAward.send('updateAward', { ...updateAwardDto, id })
-        .pipe(catchError(error => { throw new RpcException(error) }));
+        return this.client.send('updateAward', { ...updateAwardDto, id })
+            .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    @OnEvent('award.update', { async: true})
+    //TODO: CHEKEAR
+    @OnEvent('award.update', { async: true })
     async handleUpdate(
-        updateAwardDto: UpdateAwardDto        
+        updateAwardDto: UpdateAwardDto,
+        id: string
     ) {
-        try {
-            return await firstValueFrom(
-                this.clientAward.send('updateAward', updateAwardDto)
-                    .pipe(
-                        timeout(5000),
-                        catchError(error => {
-                            // Error del microservicio - convertir a valor manejable
-                            console.error('Microservice error in award update:', error);
-                            return of({ success: false, error: error.message });
-                        })
-                    )
-            );
-        } catch (error) {
-            // Error en el event handler - usar interceptor
-            this.eventErrorInterceptor.handleEventError(
-                error, 
-                'award.update', 
-                updateAwardDto
-            );
-            return { success: false, error: 'Event processing failed' };
-        }
+        return this.client.send('updateAward', { ...updateAwardDto, id })
+            .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
+    //* Eliminar un premio
     @Delete(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(AuthGuard)
     remove(
-        @Param('id', ParseIntPipe) id: number    
+        @Param('id', ParseUUIDPipe) id: string,
     ) {
-        return this.clientAward.send('removeAward', id)
-        .pipe(catchError(error => { throw new RpcException(error) }));
+        return this.client.send('removeAward', id)
+            .pipe(catchError(error => { throw new RpcException(error) }));
     }
 }

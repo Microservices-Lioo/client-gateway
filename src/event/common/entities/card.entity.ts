@@ -1,8 +1,8 @@
 export class Card {
-    id: number;
+    id: string;
     num: number;
-    buyer: number;
-    eventId: number;
+    buyer: string;
+    eventId: string;
     nums: string;
     available: boolean;
 }

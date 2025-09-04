@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Inject, Param, ParseIntPipe, Patch, Post, Put } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { GAME_SERVICE } from 'src/config';
+import { NATS_SERVICE } from 'src/config';
 import { CreateGameModeDto, UpdateGameModeDto } from './dtos';
 import { catchError } from 'rxjs';
 
@@ -8,7 +8,7 @@ import { catchError } from 'rxjs';
 export class GameModeController {
 
     constructor(
-        @Inject(GAME_SERVICE) private client: ClientProxy,
+        @Inject(NATS_SERVICE) private client: ClientProxy,
     ) { }
 
     @Post()

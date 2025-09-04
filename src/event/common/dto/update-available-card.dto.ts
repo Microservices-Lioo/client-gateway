@@ -1,7 +1,8 @@
-import { IsNumber, IsPositive } from "class-validator";
+import { IsNotEmpty, IsString, IsUUID } from "class-validator";
 
 export class UpdateAvailableCardDto {
-    @IsNumber()
-    @IsPositive()
-    eventId: number;
+    @IsUUID()
+    @IsString()
+    @IsNotEmpty()
+    eventId: string;
 }

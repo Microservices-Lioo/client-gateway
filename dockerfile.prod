@@ -1,0 +1,52 @@
+### todo: Step 1: Dependencias
+FROM node:21-alpine3.19 as deps
+
+# Directorio de trabajo de node
+WORKDIR /usr/src/app
+
+# Copia los archivos al workdir
+COPY package.json ./
+COPY package-lock.json ./
+
+# Crear node_modules
+RUN npm install
+
+#### todo: Step 2: Build - Contrucción de la aplicación
+FROM node:21-alpine3.19 as build
+
+# Directorio de trabajo de node
+WORKDIR /usr/src/app
+
+# Copiar node_modules
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+# Copio todo el codigo fuente de la aplicación
+COPY . .
+
+# Contruyo la aplicación
+RUN npm run build
+
+# Optimizar imagen
+RUN npm ci -f --only=production && npm cache clean --force
+
+
+### todo: Step 3: Crear la imagen
+FROM node:21-alpine3.19 as prod
+
+# Directorio de trabajo de node
+WORKDIR /usr/src/app
+
+# Copiar node_modules
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+
+# Copiar la app de dist
+COPY --from=build /usr/src/app/dist ./dist
+
+ENV NODE_ENV=production
+
+# Creación de usuario
+USER node
+
+# Puertos de escucha
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]

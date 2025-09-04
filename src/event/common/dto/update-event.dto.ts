@@ -1,27 +1,30 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateEventDto } from './create-event.dto';
-import { IsDate, IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { StatusEvent } from '../enums';
 import { Type } from 'class-transformer';
-import { IsDateLongerToday } from 'src/common';
+import { IsDateLongerToday } from 'src/common/decorators';
 
 export class UpdateEventDto extends PartialType(CreateEventDto) {
-
   @IsOptional()
   @IsEnum(StatusEvent, {
-    message: 'The status must be one of the following: TODAY, NOW, PROGRAMMED, COMPLETED'
+    message: 'El status debe ser uno de los siguientes: PENDING, ACTIVE, CANCELLED, COMPLETED'
   })
-  status: StatusEvent;
+  status?: StatusEvent;
 
   @IsOptional()
   @Type(() => Date)
   @IsDate()
   @IsDateLongerToday()
-  start_time: Date;
+  start_time?: Date;
 
   @IsOptional()
   @Type(() => Date)
   @IsDate()
   @IsDateLongerToday()
-  end_time: Date;
+  end_time?: Date;
+
+  @IsOptional()
+  @IsBoolean()
+  host_is_active?: boolean;
 }

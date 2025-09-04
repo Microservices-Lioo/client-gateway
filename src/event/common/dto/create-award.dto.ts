@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsPositive, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class CreateAwardDto {
     @IsString()
@@ -9,7 +9,8 @@ export class CreateAwardDto {
     @IsNotEmpty()
     description: string;
 
-    @IsNumber()
-    @IsPositive()
-    eventId: number;
+    @IsOptional()
+    @IsUUID()
+    @IsString()
+    eventId?: string;
 }

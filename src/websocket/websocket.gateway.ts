@@ -15,11 +15,12 @@ import { envs } from 'src/config';
 import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket-auth.middleware';
 import { WsExceptionFilter } from './exceptions/ws.exception';
 import { OnEvent } from '@nestjs/event-emitter';
-import { StatusEvent } from 'src/event/common';
 import { CalledBallI } from './dtos/called-ball.interface';
 import { RoomState, StatusSing } from './interfaces/room-status.interface';
 import { WsConst } from './consts/ws.const';
 import { WsEnum } from './enums/ws.enum';
+import { Sign } from 'crypto';
+import { StatusEvent } from 'src/event/common/enums';
 
 @WebSocketGateway(
   { 
@@ -159,7 +160,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const room = WsConst.keyRoomWaiting(roomId);
     const toRoom = WsConst.keyRoom(roomId);
 
-    if (status === StatusEvent.NOW) {
+    if (status === StatusEvent.ACTIVE) {
       this.server.to(room).emit(room, status);
       this.connectedPlayers(toRoom);
       //* Cambiar de sala en ws
@@ -300,7 +301,6 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const { roomId, cardId  } = data;
     const { userId, name, lastname } = client.user;
     const keyRoom = WsConst.keyRoom(roomId);
-
     const room = this.rooms.get(keyRoom);
 
     if (!room) {
@@ -342,6 +342,22 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
         this.server.to(keyRoom).emit('songs', sing);
       }
     });
+  }
+
+  @SubscribeMessage(WsEnum.TIEBREAKER_WINNER)
+  handleTieBreacker(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() sign: Sign[]
+  ) {
+    console.log(sign);
+  }
+  
+  @SubscribeMessage(WsEnum.WINNER)
+  handleWinner(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() sign: Sign
+  ) {
+    console.log(sign);
   }
 
   @SubscribeMessage('verify-sing')

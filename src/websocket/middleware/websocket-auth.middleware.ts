@@ -1,7 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { WsException } from "@nestjs/websockets";
 import { Socket } from 'socket.io';
-import * as jwt from 'jsonwebtoken';
 import { envs } from "src/config";
 import { UserWebSocketInterface } from "../interfaces/user-websocket.interface";
 
@@ -21,7 +20,9 @@ export class WebSocketMiddleware {
                 return next(new WsException('Token requerido'));
             }
 
-            let payload: any = jwt.verify(access_token, envs.JWT_SECRET);
+            let payload: any = {
+                
+            };
             
             if ( !payload || !payload.id || 
                 !payload.name || !payload.email || 

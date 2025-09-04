@@ -1,147 +1,146 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
-import { CreateEventDto, StatusEvent, UpdateEventDto, UpdateStatusEventDto } from './common';
-import { EVENT_SERVICE } from 'src/config';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
+import { NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { catchError, tap } from 'rxjs';
-import { JwtAuthGuard } from 'src/guards';
-import { CurrentUser, PaginationDto } from 'src/common';
+import { catchError } from 'rxjs';
+import { AuthGuard } from '../auth/guards';
 import { User } from 'src/auth/entities';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CreateEventAwards, UpdateEventDto, UpdateStatusEventDto, StatusDto, ParamIdEventUserDto } from './common/dto';
+import { CurrentUser } from 'src/common/decorators';
+import { IdDto, PaginationDto } from 'src/common/dto';
 
 @Controller('event')
 export class EventController {
   constructor(
-    @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy,
-    private eventEmitter: EventEmitter2
-  ) {}
+    @Inject(NATS_SERVICE) private readonly client: ClientProxy,
+  ) { }
 
+  //* Crear evento
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   create(
-    @Body() createEventDto: CreateEventDto,
+    @Body() createEventAwards: CreateEventAwards,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('createEvent', { ...createEventDto, userId: user.id})
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    createEventAwards.event.userId = user.id;
+    return this.client.send('createEvent', createEventAwards)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Actualizar evento
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   update(
-    @Param('id', ParseIntPipe) id: number, 
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateEventDto: UpdateEventDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('updateEvent', { ...updateEventDto,  id, userId: user.id })
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    updateEventDto.userId = user.id;
+    return this.client.send('updateEvent', { ...updateEventDto, id })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Patch('status/:eventId')
-  @UseGuards(JwtAuthGuard)
+  //* Actualizar el estado de un evento
+  @Patch('status/:id')
+  @UseGuards(AuthGuard)
   updateStatus(
-    @Param('eventId', ParseIntPipe) eventId: number, 
+    @Param() idDto: IdDto,
     @Body() updateStatus: UpdateStatusEventDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('updateStatusEvent', { ...updateStatus,  eventId, userId: user.id })
-    .pipe(
-      tap((value) => {
-        if (value && value.status) {
-          this.eventEmitter.emit('event.update.status', { status: value.status, eventId: eventId });
-        }
-      }),
-      catchError(error => { throw new RpcException(error) })
-    );
+    const { id } = idDto;
+    return this.client.send('updateStatusEvent', { ...updateStatus, id, userId: user.id })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Eliminar un evento
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   remove(
-    @Param('id', ParseIntPipe) id: number,
+    @Param() idDto: IdDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('removeEvent', { userId: user.id, id })
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    const { id } = idDto;
+    return this.client.send('removeEvent', { userId: user.id, id })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Obtener todos los eventos
   @Get()
   findAll() {
-    return this.clientEvent.send('findAllEvent', {})
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findAllEvent', {})
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('for-user')
-  @UseGuards(JwtAuthGuard)
-  findByUser(
+  //* Obtener todos los eventos de un usuario
+  @Get('user')
+  @UseGuards(AuthGuard)
+  findAllUser(
     @Query() pagination: PaginationDto,
     @CurrentUser() user: User) {
-    return this.clientEvent.send('findByUserEvent', { id: user.id, pagination})
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findAllUserEvent', { userId: user.id, pagination })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('for-user/awards')
-  @UseGuards(JwtAuthGuard)
-  findByUserWithAwards(
+  //* Obtener todos los eventos con los premios de un usuario
+  @Get('user/awards')
+  @UseGuards(AuthGuard)
+  findAllUserWithAwards(
     @Query() pagination: PaginationDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('findByUserWithAwardsEvent', { id: user.id, pagination })
-      .pipe(catchError(error => { throw new RpcException(error)}));
+    return this.client.send('findAllUserWithAwardsEvent', { id: user.id, pagination })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Obtener todos los eventos por status
   @Get('status/:status')
   findAllStatus(
-    @Param('status') status: StatusEvent,
+    @Param() status: StatusDto,
     @Query() pagination: PaginationDto) {
-    return this.clientEvent.send('findAllStatusEvent', { pagination, status})
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findAllStatusEvent',
+      { pagination, status: status.status })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('by-user/status/:status')
-  @UseGuards(JwtAuthGuard)
+  //* Obtener todos los eventos por status del usuario
+  @Get('user/status/:status')
+  @UseGuards(AuthGuard)
   findAllByUserStatus(
-    @Param('status') status: StatusEvent,
+    @Param() status: StatusDto,
     @Query() pagination: PaginationDto,
     @CurrentUser() user: User
   ) {
-    return this.clientEvent.send('findAllByUserStatusEvent', { userId: user.id, pagination, status})
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findAllUserByStatusEvent',
+      { userId: user.id, pagination, status: status.status })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
+  //* Obtener un evento por su id
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   findOne(
-    @Param('id', ParseIntPipe) id: number, 
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.clientEvent.send('findOneEvent', id)
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findOneEvent', { id })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('awards/:eventId')
-  findOneWithAward(
-    @Param('eventId', ParseIntPipe) eventId: number, 
+  //* Obtener un evento con sus premios
+  @Get(':id/awards')
+  findOneWithAwards(
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.clientEvent.send('findOneWithAwardEvent', eventId)
-    .pipe(catchError(error => { throw new RpcException(error) }));
+    return this.client.send('findOneWithAwardsEvent', { id })
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('awards/:eventId/:userId')
-  @UseGuards(JwtAuthGuard)
-  findByUserEvent(
-    @Param('eventId', ParseIntPipe) eventId: number,
-    @Param('userId', ParseIntPipe) userId: number,
+  //* Obetener los el evento de un usuario
+  @Get(':id/user/:userId')
+  @UseGuards(AuthGuard)
+  findOneByUser(
+    @Param() dto: ParamIdEventUserDto,
   ) {
-    return this.clientEvent.send('findByUserEvent', { eventId, userId })
-      .pipe(catchError(error => { throw new RpcException(error)}));
-  }
-
-  @Get('is-admin/:eventId')
-  @UseGuards(JwtAuthGuard)
-  findByUserRoleEvent(
-    @Param('eventId', ParseIntPipe) eventId: number,
-    @CurrentUser() user: User
-  ) {
-    return this.clientEvent.send('findByUserRoleEvent', { eventId, userId: user.id })
-      .pipe(catchError(error => { throw new RpcException(error)}));
+    return this.client.send('findOneByUserEvent', dto)
+      .pipe(catchError(error => { throw new RpcException(error) }));
   }
 }

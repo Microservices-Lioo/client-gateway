@@ -1,13 +1,11 @@
 import { IsNumber, IsPositive } from "class-validator";
 
-export class CreateOrderItemDto {
+export class OrderItemDto {
     @IsNumber()
-    orderId: number;
-
-    @IsNumber()
+    @IsPositive()
     cardId: number;
 
-    @IsNumber({ maxDecimalPlaces: 2})
+    @IsNumber()
     @IsPositive()
     priceUnit: number;
 

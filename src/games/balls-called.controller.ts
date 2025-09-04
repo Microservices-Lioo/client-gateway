@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Delete, Inject, Body, Param, ParseIntPipe, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Inject, Body, Param, ParseIntPipe, Patch, UseGuards } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { GAME_SERVICE } from 'src/config';
+import { NATS_SERVICE } from 'src/config';
 import { catchError, tap } from 'rxjs';
 import { NumberRaffleDto } from './dtos/ball-called';
-import { JwtAuthGuard } from 'src/guards';
+import { AuthGuard } from '../auth/guards';
 import { CalledBallI } from './entities';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
@@ -11,12 +11,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 export class BallCalledController {
 
   constructor(
-      @Inject(GAME_SERVICE) private client: ClientProxy,
+      @Inject(NATS_SERVICE) private client: ClientProxy,
       private readonly eventEmitter: EventEmitter2
     ) {}
     
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async unrepeatableTableNumberRaffle(@Body() numberRaffleDto: NumberRaffleDto) {
     const { gameId, eventId } = numberRaffleDto;
     await new Promise(resolve => setTimeout(resolve, 5000));

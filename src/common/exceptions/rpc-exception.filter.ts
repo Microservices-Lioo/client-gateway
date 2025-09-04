@@ -1,29 +1,33 @@
 
-import { Catch, ArgumentsHost } from '@nestjs/common';
-
+import {
+  Catch,
+  ExceptionFilter,
+  ArgumentsHost,
+  HttpStatus,
+} from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { Response } from 'express';
 
 @Catch(RpcException)
-export class ExceptionFilter implements ExceptionFilter {
+export class RcpExceptionFilter implements ExceptionFilter {
   
   catch(exception: RpcException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
+    const response = ctx.getResponse<Response>();
 
-    const rpcError = exception.getError();
+    const rpcError = exception.getError() as any;
+
+    const status = rpcError.error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+
+    const message = rpcError.message || 'Ocurrio un error inesperado.';
     
-    if (
-      typeof rpcError === 'object' &&
-      'status' in rpcError &&
-      'message' in rpcError
-    ) {
-      const status = isNaN(+rpcError.status) ? 400 : +rpcError.status;
-      return response.status(status).json(rpcError);
-    }
+    const code = rpcError.error.code || 'Error inesperado';
 
-    response.status(400).json({
-      status: 400,
-      message: rpcError
-    })
+    response.status(status).json({
+      statusCode: status,
+      message,
+      code,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

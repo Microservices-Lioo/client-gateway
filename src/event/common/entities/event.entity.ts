@@ -1,13 +1,13 @@
 import { StatusEvent } from "../enums";
 
 export class EventEntity {
-    id: number;
+    id: string;
     name: string;
     description: string;
-    userId: number;
+    userId: string;
     status: StatusEvent;
-    time: Date;
     start_time: Date;
     end_time: Date;
     price: number;
+    host_is_active: boolean;
 }

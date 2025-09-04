@@ -1,23 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError, Observable } from 'rxjs';
-import { EVENT_SERVICE } from 'src/config';
-import { EventEntity } from './common';
+import { NATS_SERVICE } from 'src/config';
+import { EventEntity } from './common/entities';
 
 @Injectable()
 export class EventService {
     constructor(
-        @Inject(EVENT_SERVICE) private readonly clientEvent: ClientProxy
+        @Inject(NATS_SERVICE) private readonly client: ClientProxy
     ) { }
 
     //* peticiones para ws
     verifyAParticipatingUserEvent(eventId: number, userId: number): Observable<boolean> {
-        return this.clientEvent.send<boolean>('verifyAParticipatingUserEvent', { eventId, userId })
+        return this.client.send<boolean>('verifyAParticipatingUserEvent', { eventId, userId })
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
     getEvent(eventId: number): Observable<EventEntity> {
-        return this.clientEvent.send('findOneEventWS', eventId)
+        return this.client.send('findOneEventWS', eventId)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
@@ -26,22 +26,22 @@ export class EventService {
         key: string, 
         data: { userId: number, socketId: string }
     ): Observable<boolean> {
-        return this.clientEvent.send('joinRoom', { key, data})
+        return this.client.send('joinRoom', { key, data})
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
     countUsersRoom(key: string): Observable<number | null> {
-        return this.clientEvent.send('countUsersRoom', key)
+        return this.client.send('countUsersRoom', key)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
     deleteRoom(key: string): Observable<void> {
-        return this.clientEvent.send('deleteRoom', key)
+        return this.client.send('deleteRoom', key)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
     deleteUserRoom(userId: number, socketId: string) {
-        return this.clientEvent.send('deleteUserRoom', {userId, socketId})
+        return this.client.send('deleteUserRoom', {userId, socketId})
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 }

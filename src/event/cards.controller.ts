@@ -1,127 +1,113 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
-import { CurrentUser, PaginationDto } from 'src/common';
-import { EVENT_SERVICE } from 'src/config';
-import { CheckOrUncheckDto, CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto } from './common';
-import { JwtAuthGuard } from 'src/guards';
+import { NATS_SERVICE } from 'src/config';
+import { AuthGuard } from '../auth/guards';
 import { User } from 'src/auth/entities';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto, CheckOrUncheckDto } from './common/dto';
+import { CurrentUser } from 'src/common/decorators';
+import { IdDto, PaginationDto } from 'src/common/dto';
 
 @Controller('card')
 export class CardsController {
 
   constructor(
-    @Inject(EVENT_SERVICE) private readonly clientCards: ClientProxy,
+    @Inject(NATS_SERVICE) private readonly client: ClientProxy,
     private eventEmitter: EventEmitter2,
   ) {}
 
+  //* Crear un tabla de bingo
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   create(
     @Body() createDto: CreateCardDto,
     @CurrentUser() user: User
   ) {
-    return this.clientCards.send('createCard', { ...createDto, buyer: user.id })
+    return this.client.send('createCard', { ...createDto, buyer: user.id })
     .pipe(catchError(error => { throw new RpcException(error) }));
-  }
-
-  @OnEvent('create.many.cards', { async: true })
-  createManyCards(data: CreateManyCardDto) {
-    const cardsListen = this.clientCards.send('createManyCard', data)
-    .pipe(catchError(error => { throw new RpcException(error) }));
-    
-    cardsListen.subscribe( {
-      next: (value) => {
-      if (Array.isArray(value)) {
-        this.eventEmitter.emit('create.items.order', value);
-      } else {
-        this.eventEmitter.emit('create.item.order', value);
-      }
-
-      },
-      error: (error) => {
-        console.log('Error al obtener datos de las cards: ' + error);
-      }
-    });
-
   }
   
+  //* Obtener un tabla de bingo por id
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.clientCards.send('findOneCard', { id })
+  @UseGuards(AuthGuard)
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.client.send('findOneCard', id)
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
-  @Get('/event/:eventId')
-  @UseGuards(JwtAuthGuard)
+  //* Obtener todas las tablas por un evento id
+  @Get('event/:eventId')
+  @UseGuards(AuthGuard)
   findAllCardsByEvent(
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() paginationDto: PaginationDto
   ) {
-    return this.clientCards.send('findAllCardsByEvent', { event: eventId, paginationDto})
+    return this.client.send('findAllCardsByEvent', { eventId, paginationDto})
     .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
-  @Get('/buyer/event/:eventId')
-  @UseGuards(JwtAuthGuard)
+  //* Obtener un card de un evento id por un usuario id
+  @Get('buyer/event/:eventId')
+  @UseGuards(AuthGuard)
   findToEventByBuyer(
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser() user: User
   ){
-    return this.clientCards.send('findToEventByBuyer', { buyer: user.id, eventId})
+    return this.client.send('findToEventByBuyer', { buyer: user.id, eventId})
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
-  @Get(':id/:buyer/:eventId')
-  @UseGuards(JwtAuthGuard)
+  //* Obtener la una card especifica de un usuario perteneciente a un evento
+  @Get(':id/buyer/:buyer/event/:eventId')
+  @UseGuards(AuthGuard)
   findOneByIdBuyerEvent(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('buyer', ParseIntPipe) buyer: number,
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('buyer', ParseUUIDPipe) buyer: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
   ) {
-    return this.clientCards.send('findOneByIdBuyerEvent', { id, buyer, eventId })
+    return this.client.send('findOneByIdBuyerEvent', { id, buyer, eventId })
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
+  // TODO Aqui me quedee!!!!
   @Patch('available/:cardId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   updateAvailable(
-    @Param('cardId', ParseIntPipe) cardId: number,
+    @Param('cardId', ParseUUIDPipe) cardId: string,
     @Body() updateAvailable: UpdateAvailableCardDto,
     @CurrentUser() user: User
   ) {
-    return this.clientCards.send('updateAvailableCard', { cardId, userId: user.id, eventId: updateAvailable.eventId } )
+    return this.client.send('updateAvailableCard', { cardId, userId: user.id, eventId: updateAvailable.eventId } )
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
   @Get('/count/:eventId')
   countAllCardsByEvent(
-    @Param('eventId', ParseIntPipe) eventId: number
+    @Param('eventId', ParseUUIDPipe) eventId: string
   ){
-    return this.clientCards.send('countAllCardsByEvent', eventId)
+    return this.client.send('countAllCardsByEvent', eventId)
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
   @Get('/count/user/:eventId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   getCardCountForUserAndEvent(
-    @Param('eventId', ParseIntPipe) eventId: number,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser() user: User
   ){
-    return this.clientCards.send('getCardCountForUserAndEvent', { buyer: user.id, eventId})
+    return this.client.send('getCardCountForUserAndEvent', { buyer: user.id, eventId})
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
   @Post('/check-or.uncheck/:cardId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   checkOrUncheckBox(
-    @Param('cardId', ParseIntPipe) cardId: number,
+    @Param('cardId', ParseUUIDPipe) cardId: string,
     @Body() checkOrUncheckDto: CheckOrUncheckDto,
     @CurrentUser() user: User
   ) {
-    return this.clientCards.send('checkOrUncheckBox', { ...checkOrUncheckDto, cardId, userId: user.id })
+    return this.client.send('checkOrUncheckBox', { ...checkOrUncheckDto, cardId, userId: user.id })
       .pipe(catchError(error => { throw new RpcException(error)}));
   }
 }
