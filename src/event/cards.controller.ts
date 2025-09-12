@@ -2,7 +2,7 @@ import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query,
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { NATS_SERVICE } from 'src/config';
-import { AuthGuard } from '../auth/guards';
+import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto, CheckOrUncheckDto } from './common/dto';

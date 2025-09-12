@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Patch, Post, UseGuards } from "@nestjs/common";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
 import { NATS_SERVICE } from "src/config";
-import { AuthGuard } from "../auth/guards";
+import { AuthGuard } from "../common/guards";
 import { catchError, firstValueFrom, of, timeout } from "rxjs";
 import { OnEvent } from "@nestjs/event-emitter";
 import { CreateAwardDto, UpdateAwardDto } from "./common/dto";

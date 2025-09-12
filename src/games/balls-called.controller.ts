@@ -3,7 +3,7 @@ import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
 import { catchError, tap } from 'rxjs';
 import { NumberRaffleDto } from './dtos/ball-called';
-import { AuthGuard } from '../auth/guards';
+import { AuthGuard } from '../common/guards';;
 import { CalledBallI } from './entities';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 

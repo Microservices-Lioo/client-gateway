@@ -3,7 +3,7 @@ import { envs, NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { OrderPaginationDto, CreateOrderDto } from './dto';
-import { AuthGuard } from '../auth/guards';
+import { AuthGuard } from '../common/guards';
 import Stripe from 'stripe';
 import { User } from 'src/auth/entities';
 import { CurrentUser } from 'src/common/decorators';

@@ -3,7 +3,7 @@ import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 import { catchError } from 'rxjs';
-import { AuthGuard } from './guards';
+import { AuthGuard } from '../common/guards';
 
 @Controller('role')
 export class RoleController {

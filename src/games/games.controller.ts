@@ -3,7 +3,7 @@ import { FindRemoveDto, UpdateGameWithModeDto } from './dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
 import { catchError, tap } from 'rxjs';
-import { AuthGuard } from '../auth/guards';
+import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
 import { createGameWithModeDto } from './dtos/game';
 import { EventEmitter2 } from '@nestjs/event-emitter';

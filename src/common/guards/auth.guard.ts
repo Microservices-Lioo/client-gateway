@@ -10,6 +10,7 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
+import { IUserRole } from 'src/common/interfaces';
 import { NATS_SERVICE } from 'src/config';
 
 @Injectable()
@@ -29,7 +30,7 @@ export class AuthGuard implements CanActivate {
     }
     try {
       request['token'] = token;
-      const user = 
+      const user: IUserRole = 
         await firstValueFrom(
           this.client.send('verifyTokenAuth', token));
       request['user'] = user;

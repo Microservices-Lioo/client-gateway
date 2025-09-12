@@ -1,13 +1,15 @@
-import { Controller, Get, Post, Body, Param, Delete, Inject, UseGuards, Patch, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Inject, UseGuards, Patch } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
 import { AccessTokenDto, LoginAuthDto, RefreshTokenDto, RegisterAuthDto, UpdateAuthDto } from './dto';
-import { catchError, firstValueFrom } from 'rxjs';
-import { AuthGuard } from './guards';
+import { catchError, firstValueFrom, Observable } from 'rxjs';
 import { User } from './entities';
 import { Token } from 'src/common/decorators/token.decorator';
-import { CurrentUser } from 'src/common/decorators';
+import { Auth, CurrentUser } from 'src/common/decorators';
 import { IdDto, EmailDto } from 'src/common/dto';
+import { IAuth } from 'src/common/interfaces';
+import { ERoles } from 'src/common/enums';
+import { AuthGuard } from 'src/common/guards';
 
 @Controller('auth')
 export class AuthController {
@@ -18,14 +20,14 @@ export class AuthController {
 
   //* Registrar un usuario
   @Post('sign-up')
-  register(@Body() registerAuthDto: RegisterAuthDto) {
+  register(@Body() registerAuthDto: RegisterAuthDto): Observable<IAuth> {
     return this.client.send('registerAuth', registerAuthDto)
       .pipe(catchError(error => { throw new RpcException(error) }));
   }
 
   //* Iniciar sesión
   @Post('log-in')
-  login(@Body() loginAuthDto: LoginAuthDto) {
+  login(@Body() loginAuthDto: LoginAuthDto): Observable<IAuth> {
     return this.client.send('loginAuth', loginAuthDto)
       .pipe(catchError(error => { throw new RpcException(error) }));
   }
@@ -68,7 +70,7 @@ export class AuthController {
 
   //* Actualizar un usuario por id
   @Patch(':id')
-  @UseGuards(AuthGuard)
+  @Auth(ERoles.ADMIN, ERoles.USER)
   async updateUser(
     @Param() idDto: IdDto,
     @Body() updateAuthDto: UpdateAuthDto,
@@ -94,7 +96,7 @@ export class AuthController {
 
   //* Eliminar un usuario
   @Delete()
-  @UseGuards(AuthGuard)
+  @Auth(ERoles.ADMIN)
   removeUser(
     @CurrentUser() user: User
   ) {

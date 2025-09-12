@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, UseGuards, Q
 import { NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
-import { AuthGuard } from '../auth/guards';
+import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
 import { CreateEventAwards, UpdateEventDto, UpdateStatusEventDto, StatusDto, ParamIdEventUserDto } from './common/dto';
 import { CurrentUser } from 'src/common/decorators';
