@@ -5,8 +5,9 @@ import { catchError } from 'rxjs';
 import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
 import { CreateEventAwards, UpdateEventDto, UpdateStatusEventDto, StatusDto, ParamIdEventUserDto } from './common/dto';
-import { CurrentUser } from 'src/common/decorators';
+import { Auth, CurrentUser } from 'src/common/decorators';
 import { IdDto, PaginationDto } from 'src/common/dto';
+import { ERoles } from 'src/common/enums';
 
 @Controller('event')
 export class EventController {
@@ -93,6 +94,7 @@ export class EventController {
   }
 
   //* Obtener todos los eventos por status
+  // PUBLIC:
   @Get('status/:status')
   findAllStatus(
     @Param() status: StatusDto,

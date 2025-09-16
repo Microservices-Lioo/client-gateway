@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, Delete, Inject, UseGuards, Patch } 
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
 import { AccessTokenDto, LoginAuthDto, RefreshTokenDto, RegisterAuthDto, UpdateAuthDto } from './dto';
-import { catchError, firstValueFrom, Observable } from 'rxjs';
+import { catchError, firstValueFrom, map, Observable } from 'rxjs';
 import { User } from './entities';
 import { Token } from 'src/common/decorators/token.decorator';
 import { Auth, CurrentUser } from 'src/common/decorators';
@@ -55,7 +55,13 @@ export class AuthController {
     @Param() idDto: IdDto) {
       const { id } = idDto;
     return this.client.send('findOneUser', id)
-      .pipe(catchError(error => { throw new RpcException(error) }));
+      .pipe(
+        map( value => {
+          const { password, ...data} = value;
+          return data
+        }),
+        catchError(error => { throw new RpcException(error) })
+      );
   }
 
   //* Obtener un usuario por email
@@ -65,7 +71,13 @@ export class AuthController {
     @Param() emailDto: EmailDto) {
       const { email } = emailDto;
     return this.client.send('findOneUserEmail', email)
-      .pipe(catchError(error => { throw new RpcException(error) }));
+      .pipe(
+        map( value => {
+          const { password, ...data} = value;
+          return data
+        }),
+        catchError(error => { throw new RpcException(error) })
+      );
   }
 
   //* Actualizar un usuario por id
