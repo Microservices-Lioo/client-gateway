@@ -18,23 +18,6 @@ export class PaymentsController {
   ) {
     return this.client.send('create-payment-session', createPaymentSessionDto)
       .pipe(catchError(error => { throw new RpcException(error) }));
-    // return this.paymentsService.createPaymentSession(createPaymentSessionDto);
-  }
-
-  @Get('success')
-  success() {
-    return {
-      ok: true,
-      message: `Payment successful`
-    }
-  }
-
-  @Get('cancel')
-  cancel() {
-    return {
-      ok: false,
-      message: `Payment cancel`
-    }
   }
 
   @Post('webhook')

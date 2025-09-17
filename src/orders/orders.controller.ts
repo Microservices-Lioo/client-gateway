@@ -6,7 +6,8 @@ import { OrderPaginationDto, CreateOrderDto } from './dto';
 import { AuthGuard } from '../common/guards';
 import Stripe from 'stripe';
 import { User } from 'src/auth/entities';
-import { CurrentUser } from 'src/common/decorators';
+import { Auth, CurrentUser } from 'src/common/decorators';
+import { ERoles } from 'src/common/enums';
 
 @Controller('orders')
 export class OrdersController {
@@ -18,7 +19,7 @@ export class OrdersController {
   ) {}
 
   @Post()
-  @UseGuards(AuthGuard)
+  @Auth(ERoles.ADMIN, ERoles.USER)
   createOrder(
     @Body() createOrderDto: CreateOrderDto,
     @CurrentUser() user: User
