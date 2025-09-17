@@ -115,7 +115,18 @@ Antes de levantar el gateway, asegúrate de que los microservicios estén ejecut
 # (Consulta la documentación de cada microservicio)
 ```
 
-### 6. Ejecutar el Client Gateway
+### 6. Habilitar escucha de Stripe por el webhook
+
+```bash
+# Desarrollo:
+stripe listen --forward-to localhost:<port>/api/payments/webhook
+
+# Producción:
+# Asignar esa escucha mediante un servicio de webhook
+```
+
+
+### 7. Ejecutar el Client Gateway
 
 ```bash
 # Desarrollo

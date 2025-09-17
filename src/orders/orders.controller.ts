@@ -18,6 +18,7 @@ export class OrdersController {
     @Inject(NATS_SERVICE) private readonly client: ClientProxy,
   ) {}
 
+  //* Crear una orden de pago
   @Post()
   @Auth(ERoles.ADMIN, ERoles.USER)
   createOrder(
@@ -28,14 +29,17 @@ export class OrdersController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
+  //* Obtener todas las ordenes de pago
   @Get()
-  @UseGuards(AuthGuard)
+  @Auth(ERoles.ADMIN, ERoles.USER)
   findAll(@Query() orderpagDto: OrderPaginationDto ) {
     return this.client.send('findAllOrders', orderpagDto )
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
+  //* Obtener una orden de pago por ID
   @Get('id/:id')
+  @Auth(ERoles.ADMIN, ERoles.USER)
   findOne(
     @Param('id', ParseIntPipe) id: number,
     @Body('eventId', ParseIntPipe) eventId: number,
