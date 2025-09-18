@@ -1,9 +1,8 @@
-import { Controller, Get, Post, Body, Param, Inject, ParseIntPipe, Query, UseGuards, HttpStatus } from '@nestjs/common';
-import { envs, NATS_SERVICE } from 'src/config';
+import { Controller, Get, Post, Body, Param, Inject, Query, ParseUUIDPipe } from '@nestjs/common';
+import { NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { OrderPaginationDto, CreateOrderDto } from './dto';
-import { AuthGuard } from '../common/guards';
 import Stripe from 'stripe';
 import { User } from 'src/auth/entities';
 import { Auth, CurrentUser } from 'src/common/decorators';
@@ -41,10 +40,9 @@ export class OrdersController {
   @Get('id/:id')
   @Auth(ERoles.ADMIN, ERoles.USER)
   findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @Body('eventId', ParseIntPipe) eventId: number,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.client.send('findOneOrder', {id, eventId})
+    return this.client.send('findOneOrder', {id})
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 }
