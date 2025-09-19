@@ -7,6 +7,8 @@ import Stripe from 'stripe';
 import { User } from 'src/auth/entities';
 import { Auth, CurrentUser } from 'src/common/decorators';
 import { ERoles } from 'src/common/enums';
+import { IUser } from 'src/common/interfaces';
+import { PaginationDto } from 'src/common/dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -43,6 +45,17 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.client.send('findOneOrder', {id})
+    .pipe(catchError( error => { throw new RpcException(error) }));
+  }
+
+  //* Obtener una orden de pago de un usuario
+  @Get('user')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  findOneByUser(
+    @Query() pagination: PaginationDto,
+    @CurrentUser() user: IUser
+  ) {
+    return this.client.send('findOneByUser', {userId: user.id, pagination})
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 }
