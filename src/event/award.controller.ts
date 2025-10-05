@@ -5,17 +5,16 @@ import { AuthGuard } from "../common/guards";
 import { catchError, firstValueFrom, of, timeout } from "rxjs";
 import { OnEvent } from "@nestjs/event-emitter";
 import { CreateAwardDto, UpdateAwardDto } from "./common/dto";
-import { IAward, ICard } from "./common/interfaces";
+import { IAward } from "./common/interfaces";
 import { IUser } from "src/common/interfaces";
-import { EventErrorInterceptor } from "src/common/interceptors";
-import { IdDto } from "src/common/dto";
+import { Auth } from "src/common/decorators";
+import { ERoles } from "src/common/enums";
 
 @Controller('award')
 export class AwardController {
 
     constructor(
         @Inject(NATS_SERVICE) private readonly client: ClientProxy,
-        private readonly eventErrorInterceptor: EventErrorInterceptor
     ) { }
 
     //* Crear un nuevo premio
@@ -48,6 +47,7 @@ export class AwardController {
 
     //* Obtener todos los premios por un evento id
     @Get('event/:eventId')
+    @Auth(ERoles.ADMIN, ERoles.USER)
     findAllByEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
         return this.client.send('findAllByEventAward', eventId)
             .pipe(catchError(error => { throw new RpcException(error) }));
@@ -92,7 +92,7 @@ export class AwardController {
 
     //* Actualizar un premio
     @Patch(':id')
-    @UseGuards(AuthGuard)
+    @Auth(ERoles.ADMIN, ERoles.USER)
     update(
         @Param('id', ParseUUIDPipe) id: string,
         @Body() updateAwardDto: UpdateAwardDto

@@ -1,9 +1,9 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateEventDto } from './create-event.dto';
-import { IsBoolean, IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsOptional } from 'class-validator';
 import { StatusEvent } from '../enums';
 import { Type } from 'class-transformer';
-import { IsDateLongerToday } from 'src/common/decorators';
+import { IsDateLongerToday } from 'src/shared/decorators';
 
 export class UpdateEventDto extends PartialType(CreateEventDto) {
   @IsOptional()

@@ -1,20 +1,19 @@
-import { Controller, Get, Param, ParseIntPipe, Post, Patch, Body, Inject, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Param, Post, Patch, Body, Inject, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { catchError } from 'rxjs';
 import { NATS_SERVICE } from 'src/config';
 import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { CreateCardDto, CreateManyCardDto, UpdateAvailableCardDto, CheckOrUncheckDto } from './common/dto';
-import { CurrentUser } from 'src/common/decorators';
-import { IdDto, PaginationDto } from 'src/common/dto';
+import { CreateCardDto, UpdateAvailableCardDto, CheckOrUncheckDto } from './common/dto';
+import { Auth, CurrentUser } from 'src/common/decorators';
+import { PaginationDto } from 'src/common/dto';
+import { ERoles } from 'src/common/enums';
 
 @Controller('card')
 export class CardsController {
 
   constructor(
     @Inject(NATS_SERVICE) private readonly client: ClientProxy,
-    private eventEmitter: EventEmitter2,
   ) {}
 
   //* Crear un tabla de bingo
@@ -70,6 +69,29 @@ export class CardsController {
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
+  //* Marcar o desmarcar un celda 
+  @Post('/check-or-uncheck/:cardId')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  checkOrUncheckBox(
+    @Param('cardId', ParseUUIDPipe) cardId: string,
+    @Body() checkOrUncheckDto: CheckOrUncheckDto,
+    @CurrentUser() user: User
+  ) {
+    return this.client.send('checkOrUncheckBox', { ...checkOrUncheckDto, cardId, userId: user.id })
+      .pipe(catchError(error => { throw new RpcException(error)}));
+  }
+
+  //* Marcar o desmarcar un celda 
+  @Patch('/reset/event/:eventId')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  resetCardsForEvent(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() ids: string[],
+  ) {
+    return this.client.send('resetCardsForEventCards', { eventId, ids })
+      .pipe(catchError(error => { throw new RpcException(error)}));
+  }
+
   // TODO Aqui me quedee!!!!
   @Patch('available/:cardId')
   @UseGuards(AuthGuard)
@@ -100,14 +122,4 @@ export class CardsController {
     .pipe(catchError( error => { throw new RpcException(error)} ));
   }
 
-  @Post('/check-or.uncheck/:cardId')
-  @UseGuards(AuthGuard)
-  checkOrUncheckBox(
-    @Param('cardId', ParseUUIDPipe) cardId: string,
-    @Body() checkOrUncheckDto: CheckOrUncheckDto,
-    @CurrentUser() user: User
-  ) {
-    return this.client.send('checkOrUncheckBox', { ...checkOrUncheckDto, cardId, userId: user.id })
-      .pipe(catchError(error => { throw new RpcException(error)}));
-  }
 }

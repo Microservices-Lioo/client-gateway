@@ -11,12 +11,14 @@ export class GameModeController {
         @Inject(NATS_SERVICE) private client: ClientProxy,
     ) { }
 
+    //* Crear un modo de juego
     @Post()
     createMode(@Body() createMode: CreateGameModeDto) {
         return this.client.send('createMode', createMode)
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
+    //* Obtener todos los modos de juego
     @Get()
     findAllMode() {
         return this.client.send('findAllMode', {})

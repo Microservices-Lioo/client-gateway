@@ -1,7 +1,7 @@
 import { Type } from "class-transformer";
 import { ArrayNotEmpty, IsArray, IsDate, IsNotEmpty, IsNotEmptyObject, IsNumber, IsObject, IsOptional, IsPositive, IsString, IsUUID, ValidateNested } from "class-validator"
 import { CreateAwardDto } from "./create-award.dto";
-import { IsDateLongerToday } from "src/common/decorators";
+import { IsDateLongerToday } from "src/shared/decorators";
 
 export class CreateEventDto {
     @IsString()

@@ -31,5 +31,6 @@ async function bootstrap() {
   
 
   logger.log(`Server is running on port ${envs.PORT}`);
+  logger.log(`Web Socket Server is running on port ${envs.WS_PORT}`);
 }
 bootstrap();

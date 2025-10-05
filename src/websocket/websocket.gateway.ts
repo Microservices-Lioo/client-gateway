@@ -1,41 +1,37 @@
-import { 
-  ConnectedSocket, 
-  MessageBody, 
-  OnGatewayConnection, 
-  OnGatewayDisconnect, 
-  OnGatewayInit, 
-  SubscribeMessage, 
-  WebSocketGateway, 
-  WebSocketServer 
+import {
+  ConnectedSocket,
+  MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer
 } from '@nestjs/websockets';
-import { Logger, UseFilters } from '@nestjs/common';
+import { Inject, Logger, ParseBoolPipe, ParseUUIDPipe, UseFilters } from '@nestjs/common';
 import { Server } from 'socket.io';
-import { EventService } from 'src/event/event.service';
-import { envs } from 'src/config';
+import { envs, NATS_SERVICE } from 'src/config';
 import { AuthenticatedSocket, WebSocketMiddleware } from './middleware/websocket-auth.middleware';
 import { WsExceptionFilter } from './exceptions/ws.exception';
-import { OnEvent } from '@nestjs/event-emitter';
-import { CalledBallI } from './dtos/called-ball.interface';
-import { RoomState, StatusSing } from './interfaces/room-status.interface';
 import { WsConst } from './consts/ws.const';
-import { WsEnum } from './enums/ws.enum';
-import { Sign } from 'crypto';
-import { StatusEvent } from 'src/event/common/enums';
+import { EWebSocket } from './enums/ws.enum';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom, lastValueFrom } from 'rxjs';
+import { WebSocketService } from './websocket.service';
+import { HostActivity, IDataInitial, ITableWinners } from './interfaces';
+import { EStatusHost } from './enums';
 
-@WebSocketGateway(
-  { 
-    namespace: 'events-games',
+@WebSocketGateway(envs.WS_PORT,
+  {
+    namespace: 'room',
     cors: {
       origin: envs.FRONTEND_URL,
       credentials: true
     }
-   }
+  }
 )
 @UseFilters(WsExceptionFilter)
 export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
-  private countDuration: number = 30;
-
-  private rooms: Map<string, RoomState> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -44,9 +40,10 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   constructor(
     private webSocketMiddleware: WebSocketMiddleware,
-    private readonly eventServ: EventService
-  ) {}
-  
+    @Inject(NATS_SERVICE) private readonly client: ClientProxy,
+    private readonly wsService: WebSocketService
+  ) { }
+
   afterInit(server: Server) {
     server.use((socket: AuthenticatedSocket, next) => {
       this.webSocketMiddleware.use(socket, next);
@@ -55,387 +52,253 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     this.logger.log('WebSocket Gateway inicializado con middleware de autenticación');
   }
 
-  handleConnection(socket: AuthenticatedSocket) {
-    console.log('Cliente conectado: ' + socket.id);
-  }
+  //* Conectar al usuario al socket
+  async handleConnection(socket: AuthenticatedSocket) {
+    try {
+      const { roomId } = socket;
+      const { id: userId } = socket.user;
+      const connected = await firstValueFrom(
+        this.client.send('joinRoom', { socketId: socket.id, roomId: roomId, userId })
+      );
+      if (connected) {
+        this.logger.log('Cliente conectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
 
-  @SubscribeMessage('joinGame')
-  handleJoinGame(
-    @MessageBody() room: number, 
-    @ConnectedSocket() client: AuthenticatedSocket,
-  ) {
-    const { userId } = client.user;
-    const joinRoom = WsConst.keyRoom(room);
-
-    //* Validacion si el usuario pertenece al evento
-    this.eventServ.verifyAParticipatingUserEvent(room, userId)
-    .subscribe({
-      next: (exists) => {
-        if (!exists) {
-          client.emit(WsEnum.UNAUTHORIZED, { message: 'No perteneces al evento' });
-          client.disconnect();
-        } else {
-          client.join(joinRoom);
-          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id })
-          .subscribe( (_) => {
-            this.connectedPlayers(joinRoom);
-            if (this.rooms.has(joinRoom)) {
-              const room = this.rooms.get(joinRoom);
-              if (room.songs && room.songs.length > 0) {
-                room.songs.forEach(sing => {
-                  client.emit('songs', sing);
-                });
-              }
-            }      
-          });
-
-          if (!this.rooms.has(joinRoom)) {
-            this.rooms.set(joinRoom, {
-              isCounterActive: false,
-              counter: 0
-            })
-          }
-        }
-      },
-      error: (error) => {
-        client.emit(WsEnum.UNAUTHORIZED, { message: 'Error de validación: ' + error.message });
-      }
-    });    
-  }
-
-  @SubscribeMessage('waitingGame')
-  handleWaitingGame(
-    @MessageBody() room: number,
-    @ConnectedSocket() client: AuthenticatedSocket
-  ) {
-    const { userId } = client.user;
-    const joinRoom = WsConst.keyRoomWaiting(room);
-    
-    //* Validacion si el usuario pertenece al evento
-    this.eventServ.verifyAParticipatingUserEvent(room, userId)
-    .subscribe({
-      next: (exists) => {
-        if (!exists) {
-          client.emit(WsEnum.UNAUTHORIZED, { message: 'No perteneces al evento' });
-          client.disconnect();
-        } else {
-          client.join(joinRoom);
-          this.eventServ.joinRoom(joinRoom, { userId, socketId: client.id });
-          this.connectedPlayers(joinRoom);          
-          client.emit(joinRoom, { message: `Sala #${room}: Evento no iniciado. Ahora te encuentras en sala de espera.`, status: true});
-        }
-      },
-      error: (error) => {
-        client.emit(WsEnum.UNAUTHORIZED, { message: 'Error de validación: ' + error.message });
-      }
-    });
-  }
-
-  private connectedPlayers(joinRoom: string) {
-    this.eventServ.countUsersRoom(joinRoom).subscribe({
-      next: (countUsers) => {
-        if (countUsers) {
-          this.server.to(joinRoom).emit(
-            WsConst.keyRoomCountUsers(joinRoom),
-            countUsers
-          );
+        // Actualiza el statudo del host a online
+        const isHost = await this.wsService.offlineStatusHost(roomId, userId, EStatusHost.ONLINE);
+        if (isHost) {
+          this.server.emit(WsConst.statusHostRoom(roomId), EStatusHost.ONLINE);
         }
 
-        if (countUsers == 0) {
-          this.leaveRoom(joinRoom);
-        }
-      }
-    });
-  }
+        // Obtención de la data inicial
+        const data = await firstValueFrom(
+          this.client.send<IDataInitial>('initialDataRoom', { roomId })
+        );
+        // Emite el numero de usuarios conectados en la sala
+        this.server.emit(WsConst.countUser(roomId), data.countUser);
 
-  async handleDisconnect(client: AuthenticatedSocket) {
-    await this.deleteUserRoom(client.user.userId, client.id);
-  }
+        // Emite el estado del contador si existe
+        socket.emit(WsConst.count(roomId), data.statusCount);
+        // Emite el estado de la tabla de ganadores
+        socket.emit(WsConst.tableWinners(roomId), { table: data.tableWinners});
+        // Emite la actividad del host
+        socket.emit(WsConst.activityHost(roomId), data.hostActivity);
 
-  @OnEvent('event.update.status')
-  async updateStatusEvent(
-    data: { status: StatusEvent, eventId: number }
-  ) {
-    const { status, eventId: roomId } = data;
-    const room = WsConst.keyRoomWaiting(roomId);
-    const toRoom = WsConst.keyRoom(roomId);
-
-    if (status === StatusEvent.ACTIVE) {
-      this.server.to(room).emit(room, status);
-      this.connectedPlayers(toRoom);
-      //* Cambiar de sala en ws
-      this.moveRoom(room, toRoom);
-      this.moveRoom(WsConst.keyRoomCountUsers(room), 
-        WsConst.keyRoomCountUsers(toRoom));
-
-    } else if (status === StatusEvent.COMPLETED) {
-      //* Elimnar sala
-      this.deleteRoom(toRoom);
-      this.disconnectedRoom(toRoom);
-      this.disconnectedRoom(WsConst.keyRoomCountUsers(toRoom));
-    }
-  }
-
-  @SubscribeMessage('disconnectRoom')
-  handleDisconnectRoom(
-    @MessageBody() roomId: number, 
-    @ConnectedSocket() client: AuthenticatedSocket,
-  ) {
-    const { userId } = client.user;
-    const room = WsConst.keyRoom(roomId);
-    const roomWaiting = WsConst.keyRoomWaiting(roomId);
-
-    client.leave(roomWaiting);
-    client.leave(WsConst.keyRoomCountUsers(roomWaiting));
-    client.leave(room);
-    client.leave(WsConst.keyRoomCountUsers(room));
-
-    this.deleteUserRoom(userId, client.id);
-  }
-
-  async disconnectedRoom(roomId: string) {
-    const sockets = await this.server.in(roomId).fetchSockets();
-    sockets.forEach(element => {
-      element.leave(roomId);
-    });
-  }
-
-  async moveRoom(currentRoom: string, toRoom: string) {
-    const sockets = await this.server.in(currentRoom).fetchSockets();
-    sockets.forEach(element => {
-      element.leave(currentRoom);
-      element.join(toRoom);   
-    });
-  }
-
-  async deleteRoom(room: string) {
-    this.eventServ.deleteRoom(room).subscribe();
-  }
-
-  async deleteUserRoom(userId: number, socketId: string) {
-    this.eventServ.deleteUserRoom(userId, socketId).subscribe(room => {
-      if (room) {
-        this.connectedPlayers(room);
-      }
-    });
-  }
-
-  leaveRoom(roomKey: string) {
-    const room = this.rooms.get(roomKey);
-
-    if (room) {
-      if (room.counterId) {
-        clearInterval(room.counterId);
-      }
-      this.rooms.delete(roomKey);
-    }
-  }
-
-  startCounter(
-    roomId: number,
-  ) {
-    const nameKeyRoom = WsConst.keyRoom(roomId);
-
-    const room = this.rooms.get(nameKeyRoom);
-
-    if (!room || room.isCounterActive) {
-      return;
-    }
-
-    room.isCounterActive = true;
-    room.counter = this.countDuration;
-
-    this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_STARTED, {
-      counter: room.counter,
-      isCounterActive: true
-    });
-
-    room.counterId = setInterval(() => {
-      room.counter--;
-
-      this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_UPDATE, {
-        isCounterActive: true,
-        counter: room.counter,
-      });
-
-      if (room.counter <= 0) {
-        this.stopCounter(roomId);
-      }
-    }, 1000) 
-  }
-
-  stopCounter(roomId: number) {
-    const nameKeyRoom = WsConst.keyRoom(roomId);
-    const room = this.rooms.get(nameKeyRoom);
-
-    if (!room) return;
-
-    if (room.counterId) {
-      clearInterval(room.counterId);
-      room.counterId = undefined;
-    }
-
-    room.isCounterActive = false;
-    room.counter = 0;
-
-    this.server.to(nameKeyRoom).emit(WsEnum.COUNTER_FINISHED, {
-      isCounterActive: false,
-      counter: 0,
-    });
-  }
-
-  @OnEvent('raffle.number.called', { async: true})
-  async ballsCalledRoomWs(payload: {eventId: number, calledBall: CalledBallI}) {
-    const {eventId, calledBall} = payload;
-    const room = WsConst.keyRoom(eventId);
-
-    this.server.to(room).emit(WsConst.keyRoomCalledBall(room), calledBall);
-    this.startCounter(eventId);
-  }
-
-  @SubscribeMessage('sing')
-  handleSongs(
-    @MessageBody() data: { roomId: number, cardId: number },
-    @ConnectedSocket() client: AuthenticatedSocket
-  ) {
-    const { roomId, cardId  } = data;
-    const { userId, name, lastname } = client.user;
-    const keyRoom = WsConst.keyRoom(roomId);
-    const room = this.rooms.get(keyRoom);
-
-    if (!room) {
-      client.emit(WsEnum.ERROR,'Sala no existe');
-      return;
-    }
-
-    if (!room.songs) room.songs = [];
-
-    let date = new Date();
-    const hour = `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
-    const sing = { 
-      id: client.id, 
-      userId,
-      cardId,
-      eventId: roomId,
-      fullnames: `${name} ${lastname}`,
-      hour,
-      status: StatusSing.PENDING
-    }
-    
-    const exist =  new Promise<boolean>((resolve, _) => {
-      room.songs.forEach(sing => {
-        if (sing.userId === userId && sing.cardId == cardId) {
-          resolve(true);
-          return;
-        }
-      });
-      resolve(false)
-    });
-
-    exist.then(val => {
-      if (val) {
-        client.emit(WsEnum.ERROR,'Ya has cantado bingo, espera mientras el administrador te revisa');
-        return;
       } else {
-        room.songs.push(sing);
-        this.rooms.set(keyRoom, room);
-        this.server.to(keyRoom).emit('songs', sing);
+        this.logger.error('Cliente no conectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
       }
-    });
+    } catch (error) {
+      this.logger.error('Error al conectarse en la sala', error);
+    }
   }
 
-  @SubscribeMessage(WsEnum.TIEBREAKER_WINNER)
-  handleTieBreacker(
-    @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() sign: Sign[]
+  //* Desconectar al usuario del socket
+  async handleDisconnect(socket: AuthenticatedSocket) {
+    try {
+      const { roomId } = socket;
+      const { id: userId } = socket.user;
+      const disconnected = await firstValueFrom(
+        this.client.send('exitRoom', { socketId: socket.id, roomId: socket.roomId, userId })
+      );
+
+      if (disconnected) {
+        this.logger.log('Cliente desconectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
+
+        // Actualiza el statudo del host a offline
+        const isHost = await this.wsService.offlineStatusHost(roomId, userId, EStatusHost.OFFLINE);
+        if (isHost) {
+          this.server.emit(WsConst.statusHostRoom(roomId), EStatusHost.OFFLINE);
+        }
+
+        // Emite el numero de usuarios conectados en la sala
+        const count = await this.wsService.connectedPlayers(roomId);
+        this.server.emit(WsConst.countUser(roomId), count);
+      } else {
+        this.logger.error('Cliente no desconectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
+      }
+    } catch (error) {
+      this.logger.error('Error al desconectarse en la sala', error);
+    }
+  }
+
+  //* Escucha de usuarios conectados a una sala
+  @SubscribeMessage(EWebSocket.COUNT)
+  async connectedPlayers(@ConnectedSocket() socket: AuthenticatedSocket) {
+    const { roomId } = socket;
+      const count = await this.wsService.connectedPlayers(roomId);
+      socket.emit(WsConst.countUser(roomId), count);
+  }
+
+  //* Creación de un juego y emición al socket room
+  @SubscribeMessage(EWebSocket.CREATE_GAME)
+  async createGame(
+    @MessageBody('awardId', ParseUUIDPipe) awardId: string,
+    @MessageBody('modeId', ParseUUIDPipe) modeId: string,
+    @ConnectedSocket() socket: AuthenticatedSocket
   ) {
-    console.log(sign);
+    const { roomId } = socket;
+    const game = await this.wsService.createGame(roomId, awardId, modeId);
+    this.server.emit(WsConst.game(roomId), game);
+  }
+
+  //* Obtención de celda única de tabla de bingo
+  @SubscribeMessage(EWebSocket.CELL_CARD)
+  async getCellCard(
+    @MessageBody('gameId', ParseUUIDPipe) gameId: string,
+    @ConnectedSocket() socket: AuthenticatedSocket
+  ) {
+    const { roomId } = socket;
+    const startTime = Date.now();
+    const minDurationMs = 10000;
+    const num = await this.wsService.getCellCard(roomId, gameId);
+
+    if (!num) {
+      await this.durationMinMs(startTime, minDurationMs);
+
+      this.server.emit(WsConst.getCellCard(roomId), num);
+    }
+
+    const COLMNS = ['B','I','N','G','O'];
+    let RANGE_SIZE = 15;
+    const result = COLMNS.map((col, i) => {
+      const minRange = i * RANGE_SIZE + 1;
+      const maxRange = (i + 1) * RANGE_SIZE;
+
+      if (num >= minRange && num <= maxRange) {
+          return `${col} - ${num}`;
+      }
+      return null;
+    }).filter(Boolean)[0];
+
+    await this.durationMinMs(startTime, minDurationMs);
+
+    this.server.emit(WsConst.getCellCard(roomId), result);
+
+    this.client.emit('updateHostActivityRoom', { roomId, status: HostActivity.CANTANDO });
+    this.server.emit(WsConst.activityHost(roomId), HostActivity.CANTANDO);
+
+    this.startCounter(roomId);
+  }
+
+  //* Cantos de bingo
+  @SubscribeMessage(EWebSocket.BINGO)
+  async bingo(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody('cardId', ParseUUIDPipe) cardId: string,
+    @MessageBody('numberHistoryId', ParseUUIDPipe) numberHistoryId: string,
+    @MessageBody('modeId', ParseUUIDPipe) modeId: string,
+  ) {
+    const { roomId, user } = client;
+    try {
+      const result = await this.wsService.bingo(user.id, cardId, numberHistoryId, modeId);
+      if (result != 'enviado') {
+        client.emit(WsConst.myBingo(roomId), result);
+        return;
+      }
+
+      const tableBingo = await firstValueFrom(
+        this.client.send<ITableWinners[]>('saveTableBingoRoom', 
+          { 
+            socketId: client.id, 
+            roomId, 
+            userId: user.id, 
+            cardId: cardId, 
+            fullnames: `${user.name} ${user.lastname}` })
+      );
+
+      if (!tableBingo) {
+        client.emit(WsConst.myBingo(roomId), 'Error al guardar los datos');
+        return;
+      }
+      client.emit(WsConst.myBingo(roomId), 'Enviado a revisión');
+      this.server.emit(WsConst.tableWinners(roomId), {table: tableBingo});
+    } catch (error) {
+      client.emit(WsConst.myBingo(roomId), 'Ocurrio un error al cantar bingo');
+      this.logger.error(error);
+    }    
   }
   
-  @SubscribeMessage(WsEnum.WINNER)
-  handleWinner(
+  //* Actualización de canto de un usuario
+  @SubscribeMessage(EWebSocket.UPDATE_BINGO)
+  async updateBingo(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() sign: Sign
+    @MessageBody('cardId', ParseUUIDPipe) cardId: string,
+    @MessageBody('status') status: string,
   ) {
-    console.log(sign);
-  }
+    const { roomId } = client;
+    const tableBingo = await lastValueFrom(
+      this.client.send<{sing: ITableWinners, table: ITableWinners[]}>
+      ('updateTableBingoRoom', { roomId, cardId, status })
+    );
 
-  @SubscribeMessage('verify-sing')
-  handleVeirfySongs(
-    @MessageBody() data: { roomId: number, cardId: number, status: StatusSing, userId: number },
-    @ConnectedSocket() client: AuthenticatedSocket
-  ) {
-    const {roomId, cardId, status, userId} = data;
-    if (!roomId || !cardId || !status) {
-      client.emit(WsEnum.ERROR,'No se recibieron los datos necesarios para verificar el canto');
-      return;
-    }
-    const keyRoom = WsConst.keyRoom(roomId);
-
-    try {
-      const room = this.rooms.get(keyRoom);
-
-      if (!room) {
-        client.emit(WsEnum.ERROR,'Sala no existe');
-        return;
+    if (tableBingo) {
+      const { table, sing } = tableBingo;
+      if (sing) {
+        this.server.except(sing.socketId).emit(WsConst.tableWinners(roomId), {table});
+        this.server.to(sing.socketId).emit(WsConst.tableWinners(roomId), tableBingo); // enviar el socketId unicamente
+      } else {
+        this.server.except(sing.socketId).emit(WsConst.tableWinners(roomId), {table});
       }
-
-      if (!room.songs) {
-        client.emit(WsEnum.ERROR,'No existe ningun canto');
-        return;
-      }
-
-      const singPosition = room.songs.findIndex(song => song.userId == userId && song.eventId == roomId && song.cardId == cardId);
-
-      if (singPosition == -1) {
-        client.emit(WsEnum.ERROR,'No existe ningun canto de este jugador');
-        return;
-      }
-
-      const sing = room.songs[singPosition];
-      sing.status = status;
-      room.songs[singPosition] = sing;
-      this.rooms.set(keyRoom, room);
-      this.server.to(keyRoom).emit('songs', sing);
-    } catch(error) {
-      this.server.to(keyRoom).emit(WsEnum.ERROR, 'Ocurrio un error al actualizar el canto del juagdor');
     }
   }
 
-  @SubscribeMessage('delete-all-songs')
-  handleDeleteAllSongs(
-    @MessageBody() data: { roomId: number },
-    @ConnectedSocket() client: AuthenticatedSocket
+  //* Actualización del estado de un canto de usuario
+  @SubscribeMessage(EWebSocket.UPDATE_STATUS_WINNER_MODAL)
+  async updateStatusWinnerModal(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody('status', ParseBoolPipe) status: boolean,
   ) {
-    const {roomId} = data;
-    if (!roomId) {
-      client.emit(WsEnum.ERROR,'No se recibieron los datos necesarios para verificar el canto');
-      return;
+    const { roomId } = client;
+    this.server.except(client.id).emit(WsConst.winnerModal(roomId), { isOpen: status});
+  }
+
+  //* Actualización del stado del juego
+  @SubscribeMessage(EWebSocket.STATUS_GAME)
+  async updateStatusGame(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody('status') status: string,
+  ) {
+    const { roomId } = client;
+    if (status === 'CONCLUIDO') {
+      // Limpiar tabla de bingo (cantos de los usuarios)
+      this.client.emit('cleanTableBingoRoom', {roomId});
     }
+    this.server.except(client.id).emit(WsConst.statusGame(roomId), status);
+  }
 
-    const keyRoom = WsConst.keyRoom(roomId);
+  //* Actualización de la actividad del host
+  @SubscribeMessage(EWebSocket.HOST_ACTIVITY)
+  async updateHostActivity(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody('status') status: string,
+  ) {
+    const { roomId } = client;
+    this.client.emit('updateHostActivityRoom', { roomId, status });
+    this.server.emit(WsConst.activityHost(roomId), status);
+  }
 
-    try {
-      const room = this.rooms.get(keyRoom);
-      if (!room) {
-        client.emit(WsEnum.ERROR,'Sala no existe');
-        return;
-      }
+  async durationMinMs(startTime: number, minDurationMs: number) {
+    const elapsedTime = Date.now() - startTime;
+    const remainingTime = minDurationMs - elapsedTime;
 
-      if (!room.songs) {
-        return;
-      }
-
-      const songs = room.songs.filter(sing => sing.status != StatusSing.REJECTED);
-
-      room.songs = songs;
-      this.rooms.set(keyRoom, room);
-
-      this.server.to(keyRoom).emit('delete-songs', songs);
-      
-    } catch (error) {
-      this.server.to(keyRoom).emit(WsEnum.ERROR, 'Ocurrio un error al eliminar los cantos');
+    if (remainingTime > 0) {
+      await this.delay(remainingTime);
     }
   }
 
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  //* Iniciar el contador por sala
+  async startCounter(
+    roomId: string,
+  ) {
+    const duration = 10000; // ms
+
+    const count = await firstValueFrom(
+      this.client.send('countRoom', { roomId, duration})
+    );
+
+    this.server.emit(WsConst.count(roomId), count);
+  }
 }

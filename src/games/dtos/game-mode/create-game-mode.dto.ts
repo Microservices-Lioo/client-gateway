@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsArray, IsNotEmpty, IsString } from "class-validator";
 
 
 export class CreateGameModeDto {
@@ -10,4 +10,7 @@ export class CreateGameModeDto {
     @IsNotEmpty()
     description: string;
 
+    @IsArray()
+    @IsString({ each: true})
+    rule: string;
 }

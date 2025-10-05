@@ -7,9 +7,10 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { WebsocketModule } from './websocket/websocket.module';
 import { NatsModule } from './transport/nats.module';
 import { PaymentsModule } from './payments/payments.module';
+import { SeedsModule } from './seeds/seeds.module';
 
 @Module({
-  imports: [OrdersModule, AuthModule, GamesModule, EventModule, EventEmitterModule.forRoot(), WebsocketModule, NatsModule, PaymentsModule],
+  imports: [OrdersModule, AuthModule, GamesModule, EventModule, EventEmitterModule.forRoot(), WebsocketModule, NatsModule, PaymentsModule, SeedsModule],
   controllers: [],
   providers: [],
 })

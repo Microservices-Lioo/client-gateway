@@ -8,7 +8,7 @@ import { CustomException } from 'src/common/exceptions';
 import { EventErrorInterceptor } from 'src/common/interceptors';
 
 @Module({
-  imports: [ NatsModule],
+  imports: [NatsModule],
   controllers: [EventController, CardsController, AwardController],
   providers: [CustomException, EventService, EventErrorInterceptor],
   exports: [EventService]

@@ -1,48 +1,49 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
-import { FindRemoveDto, UpdateGameWithModeDto } from './dtos';
+import { Controller, Get, Body, Patch, Param, Delete, Inject, ParseIntPipe, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { FindRemoveDto } from './dtos';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { NATS_SERVICE } from 'src/config';
-import { catchError, tap } from 'rxjs';
+import { catchError } from 'rxjs';
 import { AuthGuard } from '../common/guards';;
-import { User } from 'src/auth/entities';
-import { createGameWithModeDto } from './dtos/game';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { CurrentUser } from 'src/common/decorators';
+import { Auth } from 'src/common/decorators';
+import { ERoles } from 'src/common/enums';
+import { UpdateGameDto } from './dtos/game';
 
 @Controller('games')
 export class GamesController {
 
   constructor(
     @Inject(NATS_SERVICE) private client: ClientProxy,
-    private eventEmitter: EventEmitter2
   ) {}
 
-  @Post('/with/mode')
-  @UseGuards(AuthGuard)
-  createGameWithMode( 
-    @Body() create: createGameWithModeDto,
-    @CurrentUser() user: User
-  ) {
-    const { eventId, gameModeId, awardId } = create;
+  //* Obtener el ultimo juego activo de una sala
+  @Get('/room/:roomId')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  findGameToRoom(@Param('roomId', ParseUUIDPipe) roomId: string) {
+    return this.client.send('findGameToRoom', {roomId} )
+    .pipe(catchError( error => { throw new RpcException(error) }));
+  }
 
-    return this.client.send('createGameWithMode', {
-      eventId, 
-      gameModeId, 
-      assignedBy: user.email
-    }).pipe(
-        tap(value => {
-          if (value && value.game) {
-            setImmediate(() => {
-              this.eventEmitter.emit('award.update', 
-                { id: awardId, eventId, gameId: value.game.id});
-            });
-          }
-        }),
-        catchError( err => { 
-          console.error('Error in createGameWithMode:', err);
-          throw new RpcException(err) 
-        })
-      );
+  //* Obtener la sala de un evento
+  @Get('/event/:eventId')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  dataGame(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.client.send('findOneEventByIdRoom', {eventId} )
+      .pipe(catchError( error => { throw new RpcException(error)}));
+  }
+
+  //* Obtener el historial de numeros cantados en un juego
+  @Get('numberHistory/:id')
+  @Auth(ERoles.ADMIN, ERoles.USER)
+  getNumberHistoryGame(@Param('id', ParseUUIDPipe) id: string) {
+    return this.client.send('getNumberHistoryGame', {id} )
+    .pipe(catchError( error => { throw new RpcException(error) }));
+  }
+  
+  @Get('game-on-mode/one')
+  @UseGuards(AuthGuard)
+  findOneGameOnMode(@Query() findRemoveDto: FindRemoveDto) {
+    return this.client.send('findOneGameOnMode', findRemoveDto )
+    .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
   @Get()
@@ -59,16 +60,13 @@ export class GamesController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @Get('/event/:eventId')
-  @UseGuards(AuthGuard)
-  dataGame(@Param('eventId', ParseIntPipe) eventId: number) {
-    return this.client.send('dataGame', eventId )
-      .pipe(catchError( error => { throw new RpcException(error)}));
-  }
 
+  //* Actualizar un juego (game)
   @Patch(':id')
   @UseGuards(AuthGuard)
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateGameWithModeDto: UpdateGameWithModeDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string, 
+    @Body() updateGameWithModeDto: UpdateGameDto) {
     return this.client.send('updateGame', { id, ...updateGameWithModeDto })
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
@@ -80,12 +78,7 @@ export class GamesController {
     .pipe(catchError( error => { throw new RpcException(error) }));
   }
 
-  @Get('game-on-mode/one')
-  @UseGuards(AuthGuard)
-  findOneGameOnMode(@Query() findRemoveDto: FindRemoveDto) {
-    return this.client.send('findOneGameOnMode', findRemoveDto )
-    .pipe(catchError( error => { throw new RpcException(error) }));
-  }
+  
 
 
   @Delete('game-on-mode/rm')
