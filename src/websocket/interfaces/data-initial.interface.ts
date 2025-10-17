@@ -1,3 +1,5 @@
+import { RouletteWinnerDto } from "../dtos";
+
 export interface IStatusCount { endTime: number, duration: number }
 export interface ITableWinners {
     socketId: string;
@@ -15,5 +17,8 @@ export interface IDataInitial {
     statusCount: IStatusCount,
     countUser: number,
     tableWinners: ITableWinners[],
-    hostActivity: HostActivity
+    hostActivity: HostActivity,
+    awardStatus: string,
+    rouletteStatus: string,
+    rouletteWinner: RouletteWinnerDto | null,
 }

@@ -101,16 +101,6 @@ export class AwardController {
             .pipe(catchError(error => { throw new RpcException(error) }));
     }
 
-    //TODO: CHEKEAR
-    @OnEvent('award.update', { async: true })
-    async handleUpdate(
-        updateAwardDto: UpdateAwardDto,
-        id: string
-    ) {
-        return this.client.send('updateAward', { ...updateAwardDto, id })
-            .pipe(catchError(error => { throw new RpcException(error) }));
-    }
-
     //* Eliminar un premio
     @Delete(':id')
     @UseGuards(AuthGuard)

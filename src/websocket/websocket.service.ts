@@ -1,10 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, lastValueFrom, timeout } from 'rxjs';
-import { ICard, IMode } from 'src/shared/interfaces';
+import { IAward, ICard, IGame, IMode, IRoom } from 'src/shared/interfaces';
 import { envs, NATS_SERVICE } from 'src/config';
 import { EStatusHost, ERoleMember } from './enums';
 import { IMember, INumberHistory } from './interfaces';
+import { EStatusEvent, EStatusRoom } from 'src/shared/enums';
 
 @Injectable()
 export class WebSocketService {  
@@ -44,29 +45,30 @@ export class WebSocketService {
     );
 
     if (role && role.role === ERoleMember.HOST) {
-      await firstValueFrom(
-        this.client.send('updateStatusHostRoom', {roomId, status})
+      const room = await firstValueFrom(
+        this.client.send<IRoom>('updateStatusHostRoom', {roomId, status})
       );
-      return true;
+      return room;
     }
-    return false;
+    return null;
   }
 
   //* Creación del juego y actualización del premio
   async createGame(roomId: string, awardId: string, modeId: string) {
     try {
       const game = await firstValueFrom(
-        this.client.send('createGame', {roomId, modeId}).pipe(
+        this.client.send<IGame>('createGame', {roomId, modeId}).pipe(
           timeout(5000)
         )
       );
+
       // Actualización del premio
-      await firstValueFrom(
-        this.client.send('updateAward', {id: awardId, gameId: game.id}).pipe(
+      const award = await firstValueFrom(
+        this.client.send<IAward>('updateAward', {id: awardId, gameId: game.id}).pipe(
           timeout(5000)
         )
       );
-      return game;
+      return { game, award};
     } catch (error) {
       this.logger.error(error);
       return null;
@@ -135,6 +137,27 @@ export class WebSocketService {
     } catch (error) {
       this.logger.error(error);
       return 'Ocurrio un error, intentalo nuevamente';
+    }
+  }
+
+  //* Terminar Sala
+  async endRoom(roomId: string) {
+    try {
+      // termino la sala
+      const room = await lastValueFrom(
+        this.client.send<IRoom>('updateRoom', 
+          {id: roomId, status: EStatusRoom.FINISHED, end_time: new Date()})
+      );
+
+      const { eventId } = room;
+      // termino el evento
+      await lastValueFrom(
+        this.client.send('updateEvent', 
+          {id: eventId, status: EStatusEvent.COMPLETED, end_time: new Date()})
+      );
+
+    } catch (error) {
+      this.logger.error(error);
     }
   }
 
