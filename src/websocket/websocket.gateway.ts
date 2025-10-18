@@ -66,29 +66,32 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
       if (connected) {
         this.logger.log('Cliente conectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
 
-        // Room
-        const room = await this.wsService.offlineStatusHost(roomId, userId, EStatusHost.ONLINE);
-        if (room) {
-          this.server.emit(WsConst.room(roomId), room);
-        }
-
         // Obtención de la data inicial
         const data = await firstValueFrom(
           this.client.send<IDataInitial>('initialDataRoom', { roomId })
         );
-        // Emite el numero de usuarios conectados en la sala
-        this.server.emit(WsConst.countUser(roomId), data.countUser);
 
-        // Emite el estado del contador si existe
-        socket.emit(WsConst.count(roomId), data.statusCount);
-        // Emite el estado de la tabla de ganadores
-        socket.emit(WsConst.tableWinners(roomId), { table: data.tableWinners});
-        // Emite la actividad del host
-        socket.emit(WsConst.activityHost(roomId), data.hostActivity);
-        socket.emit(WsConst.awardStatus(roomId), data.awardStatus);
-        socket.emit(WsConst.rouletteStatus(roomId), data.rouletteStatus);
-        socket.emit(WsConst.rouletteWinner(roomId), data.rouletteWinner);
+        this.server.emit(WsConst.socket(roomId), {
+          numUsers: data.countUser // Emite el numero de usuarios conectados en la sala
+        });
 
+        // Room
+        const room = await this.wsService.offlineStatusHost(roomId, userId, EStatusHost.ONLINE);
+        if (room) {
+          this.server.emit(WsConst.room(roomId), {
+            room,
+            hostActivity: data.hostActivity,
+          });
+        }
+
+        // Game
+        this.server.emit(WsConst.game(roomId), {
+          counter: data.statusCount, // Emite el estado del contador si existe
+          statusAward: data.awardStatus,
+          tableWinner: { table: data.tableWinners },
+          rouletteStatus: data.rouletteStatus,
+          rouletteWinner: data.rouletteWinner
+        });
       } else {
         this.logger.error('Cliente no conectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
       }
@@ -112,12 +115,16 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
         // Room
         const room = await this.wsService.offlineStatusHost(roomId, userId, EStatusHost.OFFLINE);
         if (room) {
-          this.server.emit(WsConst.room(roomId), room);
+          this.server.emit(WsConst.room(roomId), {
+            room
+          });
         }
 
         // Emite el numero de usuarios conectados en la sala
         const count = await this.wsService.connectedPlayers(roomId);
-        this.server.emit(WsConst.countUser(roomId), count);
+        this.server.emit(WsConst.socket(roomId), {
+          numUsers: count // Emite el numero de usuarios conectados en la sala
+        });
       } else {
         this.logger.error('Cliente no desconectado con socketId: ' + socket.id + ', email: ' + socket.user.email);
       }
@@ -130,8 +137,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   @SubscribeMessage(EWebSocket.COUNT)
   async connectedPlayers(@ConnectedSocket() socket: AuthenticatedSocket) {
     const { roomId } = socket;
-      const count = await this.wsService.connectedPlayers(roomId);
-      socket.emit(WsConst.countUser(roomId), count);
+    const count = await this.wsService.connectedPlayers(roomId);
+    socket.emit(WsConst.socket(roomId), { numUsers: count});
   }
 
   //* Creación de un juego
@@ -144,9 +151,11 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const { roomId } = socket;
     const result = await this.wsService.createGame(roomId, awardId, modeId);
     if (!result) return;
-    const {award, game} = result;
-    this.server.emit(WsConst.game(roomId), game);
-    this.server.emit(WsConst.award(roomId), {...award, status: StatusAward.NOW});
+    const { award, game } = result;
+    this.server.emit(WsConst.game(roomId), {
+      game,
+      award: { ...award, status: StatusAward.NOW }
+    });
   }
 
   //* Obtención de celda única de tabla de bingo
@@ -162,28 +171,30 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
     if (!num) {
       await this.durationMinMs(startTime, minDurationMs);
-
-      this.server.emit(WsConst.getCellCard(roomId), num);
+      this.server.emit(WsConst.game(roomId), null);
+      return;
     }
 
-    const COLMNS = ['B','I','N','G','O'];
+    const COLMNS = ['B', 'I', 'N', 'G', 'O'];
     let RANGE_SIZE = 15;
     const result = COLMNS.map((col, i) => {
       const minRange = i * RANGE_SIZE + 1;
       const maxRange = (i + 1) * RANGE_SIZE;
 
       if (num >= minRange && num <= maxRange) {
-          return `${col} - ${num}`;
+        return `${col} - ${num}`;
       }
       return null;
     }).filter(Boolean)[0];
 
     await this.durationMinMs(startTime, minDurationMs);
 
-    this.server.emit(WsConst.getCellCard(roomId), result);
+    this.server.emit(WsConst.game(roomId), { cell: result});
 
     this.client.emit('updateHostActivityRoom', { roomId, status: HostActivity.CANTANDO });
-    this.server.emit(WsConst.activityHost(roomId), HostActivity.CANTANDO);
+    this.server.emit(WsConst.room(roomId), { 
+      hostActivity: HostActivity.CANTANDO 
+    });
 
     this.startCounter(roomId);
   }
@@ -200,32 +211,35 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     try {
       const result = await this.wsService.bingo(user.id, cardId, numberHistoryId, modeId);
       if (result != 'enviado') {
-        client.emit(WsConst.myBingo(roomId), result);
+        client.emit(WsConst.game(roomId), { myBingo: result});
         return;
       }
 
       const tableBingo = await firstValueFrom(
-        this.client.send<ITableWinners[]>('saveTableBingoRoom', 
-          { 
-            socketId: client.id, 
-            roomId, 
-            userId: user.id, 
-            cardId: cardId, 
-            fullnames: `${user.name} ${user.lastname}` })
+        this.client.send<ITableWinners[]>('saveTableBingoRoom',
+          {
+            socketId: client.id,
+            roomId,
+            userId: user.id,
+            cardId: cardId,
+            fullnames: `${user.name} ${user.lastname}`
+          })
       );
 
       if (!tableBingo) {
-        client.emit(WsConst.myBingo(roomId), 'Error al guardar los datos');
+        client.emit(WsConst.game(roomId), { 
+          myBingo: 'Error al guardar los datos'});
         return;
       }
-      client.emit(WsConst.myBingo(roomId), 'Enviado a revisión');
-      this.server.emit(WsConst.tableWinners(roomId), {table: tableBingo});
+      client.emit(WsConst.game(roomId), { myBingo: 'Enviado a revisión'});
+      this.server.emit(WsConst.game(roomId), 
+      { tableWinner: { table: tableBingo }});
     } catch (error) {
-      client.emit(WsConst.myBingo(roomId), 'Ocurrio un error al cantar bingo');
+      client.emit(WsConst.game(roomId), { myBingo: 'Ocurrio un error al cantar bingo'});
       this.logger.error(error);
-    }    
+    }
   }
-  
+
   //* Actualización de canto de un usuario
   @SubscribeMessage(EWebSocket.UPDATE_BINGO)
   async updateBingo(
@@ -235,17 +249,17 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   ) {
     const { roomId } = client;
     const tableBingo = await lastValueFrom(
-      this.client.send<{sing: ITableWinners, table: ITableWinners[]}>
-      ('updateTableBingoRoom', { roomId, cardId, status })
+      this.client.send<{ sing: ITableWinners, table: ITableWinners[] }>
+        ('updateTableBingoRoom', { roomId, cardId, status })
     );
 
     if (tableBingo) {
       const { table, sing } = tableBingo;
       if (sing) {
-        this.server.except(sing.socketId).emit(WsConst.tableWinners(roomId), {table});
-        this.server.to(sing.socketId).emit(WsConst.tableWinners(roomId), tableBingo); // enviar el socketId unicamente
+        this.server.except(sing.socketId).emit(WsConst.game(roomId), { tableWinner: { table }});
+        this.server.to(sing.socketId).emit(WsConst.game(roomId), { tableWinner: tableBingo}); // enviar el socketId unicamente
       } else {
-        this.server.except(sing.socketId).emit(WsConst.tableWinners(roomId), {table});
+        this.server.except(sing.socketId).emit(WsConst.game(roomId), { tableWinner: { table }});
       }
     }
   }
@@ -257,7 +271,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @MessageBody('status', ParseBoolPipe) status: boolean,
   ) {
     const { roomId } = client;
-    this.server.except(client.id).emit(WsConst.winnerModal(roomId), { isOpen: status});
+    this.server.except(client.id).emit(WsConst.game(roomId), { winnerModal: status });
   }
 
   //* Actualización de la actividad del host
@@ -268,7 +282,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   ) {
     const { roomId } = client;
     this.client.emit('updateHostActivityRoom', { roomId, status });
-    this.server.emit(WsConst.activityHost(roomId), status);
+    this.server.emit(WsConst.room(roomId), { hostActivity: status });
   }
 
   //* Actualizar el estado de la premiación
@@ -279,7 +293,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   ) {
     const { roomId } = client;
     this.client.emit('updateAwardStatusRoom', { roomId, status });
-    this.server.emit(WsConst.awardStatus(roomId), status);
+    this.server.emit(WsConst.game(roomId), { statusAward:status});
   }
 
   //* Actualizar el estado de la ruleta de premiación
@@ -290,7 +304,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
   ) {
     const { roomId } = client;
     this.client.emit('updateRouletteStatusRoom', { roomId, status });
-    this.server.emit(WsConst.rouletteStatus(roomId), status);
+    this.server.emit(WsConst.game(roomId), { rouletteStatus: status});
   }
 
   //* Actualizar la posicion del ganador en la ruleta
@@ -300,8 +314,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @MessageBody() data: RouletteWinnerDto,
   ) {
     const { roomId } = client;
-    this.client.emit('updateRouletteWinnerRoom', {roomId, data});
-    this.server.except(client.id).emit(WsConst.rouletteWinner(roomId), data);
+    this.client.emit('updateRouletteWinnerRoom', { roomId, data });
+    this.server.except(client.id).emit(WsConst.game(roomId), { rouletteWinner: data});
   }
 
   //* Limpiar tabla de cantos de jugadores
@@ -310,8 +324,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { roomId } = client;
-    this.client.emit('cleanTableBingoRoom', {roomId});
-    this.server.emit(WsConst.tableWinners(roomId), { table: []});
+    this.client.emit('cleanTableBingoRoom', { roomId });
+    this.server.emit(WsConst.game(roomId), { tableWinner: { table: [] }});
   }
 
   async durationMinMs(startTime: number, minDurationMs: number) {
@@ -334,10 +348,10 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const duration = 10000; // ms
 
     const count = await firstValueFrom(
-      this.client.send('countRoom', { roomId, duration})
+      this.client.send('countRoom', { roomId, duration })
     );
 
-    this.server.emit(WsConst.count(roomId), count);
+    this.server.emit(WsConst.game(roomId), { counter: count});
   }
 
   // TODO:
@@ -360,13 +374,16 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
       await lastValueFrom(
         this.client.send<IAward>('updateAward', { id: awardId, gameId, winner: cardId })
       );
-      
+
       // Limpio datos necesarios en almacenados en redis
-      this.client.emit('cleanTableBingoRoom', {roomId});
+      this.client.emit('cleanTableBingoRoom', { roomId });
 
       // respuestas
-      this.server.emit(WsConst.tableWinners(roomId), { table: []});
-      this.server.emit(WsConst.statusGame(roomId), status);
+      this.server.emit(WsConst.game(roomId), { 
+        tableWinners: { table: [] },
+        statusGame: status
+      },
+      );
 
       // Termino la sala en caso de ser necesario
       await this.wsService.endRoom(roomId);
