@@ -6,6 +6,7 @@ import { envs, NATS_SERVICE } from 'src/config';
 import { EStatusHost, ERoleMember } from './enums';
 import { IMember, INumberHistory } from './interfaces';
 import { EStatusEvent, EStatusRoom } from 'src/shared/enums';
+import { IEvent } from 'src/event/common/interfaces/event.interface';
 
 @Injectable()
 export class WebSocketService {  
@@ -141,23 +142,36 @@ export class WebSocketService {
   }
 
   //* Terminar Sala
-  async endRoom(roomId: string) {
+  async endRoom(roomId: string): Promise<{room: IRoom, event: IEvent, error?: any}> {
     try {
+      // Obtener premios
+      const roomNow = await lastValueFrom(
+        this.client.send<IRoom>('findOneRoom', {id: roomId})
+      );
+
+      const { eventId } = roomNow;
+
+      const awards = await lastValueFrom(
+        this.client.send<number>('awardsAvailableByEventAward', { eventId })
+      );
+      
+      if (awards <= 0) return { room: null, event: null, error: true };
+
       // termino la sala
       const room = await lastValueFrom(
         this.client.send<IRoom>('updateRoom', 
           {id: roomId, status: EStatusRoom.FINISHED, end_time: new Date()})
       );
 
-      const { eventId } = room;
       // termino el evento
-      await lastValueFrom(
+      const event = await lastValueFrom(
         this.client.send('updateEvent', 
           {id: eventId, status: EStatusEvent.COMPLETED, end_time: new Date()})
       );
-
+      return { room, event };
     } catch (error) {
       this.logger.error(error);
+      return { room: null, event: null, error: true };
     }
   }
 

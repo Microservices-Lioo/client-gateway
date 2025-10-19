@@ -167,6 +167,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     const { roomId } = socket;
     const startTime = Date.now();
     const minDurationMs = 10000;
+
+    this.client.emit('updateHostActivityRoom', { roomId, status: HostActivity.MEZCLANDO });
+    this.server.emit(WsConst.room(roomId), { 
+      hostActivity: HostActivity.MEZCLANDO 
+    });
+
     const num = await this.wsService.getCellCard(roomId, gameId);
 
     if (!num) {
@@ -352,9 +358,20 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     );
 
     this.server.emit(WsConst.game(roomId), { counter: count});
+
+    let result = 10;
+    const interval = setInterval(() => {
+      result = result - 1;
+      if ( result <= 0) {
+        this.client.emit('updateHostActivityRoom', { roomId, status: HostActivity.ESPERANDO });
+        this.server.emit(WsConst.room(roomId), { 
+          hostActivity: HostActivity.ESPERANDO 
+        });
+        clearInterval(interval);
+      }
+    }, 1000)
   }
 
-  // TODO:
   //* Finalizar Juego
   @SubscribeMessage(EWebSocket.END_GAME)
   async finishedGame(
@@ -375,20 +392,33 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
         this.client.send<IAward>('updateAward', { id: awardId, gameId, winner: cardId })
       );
 
+      // Obtengo el premio actualizado
+      const award = await lastValueFrom(
+        this.client.send<IAward>('findOneAward', { id: awardId })
+      );
+
       // Limpio datos necesarios en almacenados en redis
       this.client.emit('cleanTableBingoRoom', { roomId });
 
       // respuestas
       this.server.emit(WsConst.game(roomId), { 
         tableWinners: { table: [] },
-        statusGame: status
+        game: null,
+        award: { ...award, status: StatusAward.END, winner: cardId  }
       },
       );
 
-      // Termino la sala en caso de ser necesario
-      await this.wsService.endRoom(roomId);
+      this.endRoom(roomId);
     } catch (error) {
       this.logger.error(error);
     }
+  }
+
+  async endRoom(roomId: string) {
+    // Termino la sala en caso de ser necesario
+    const { room, event, error }  = await this.wsService.endRoom(roomId);
+
+    if (error) return;
+    this.server.emit(WsConst.room(roomId), { room });
   }
 }
