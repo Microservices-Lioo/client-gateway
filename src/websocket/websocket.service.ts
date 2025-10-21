@@ -142,7 +142,7 @@ export class WebSocketService {
   }
 
   //* Terminar Sala
-  async endRoom(roomId: string): Promise<{room: IRoom, event: IEvent, error?: any}> {
+  async endRoom(roomId: string, userId: string): Promise<{room: IRoom, event: IEvent, error?: any}> {
     try {
       // Obtener premios
       const roomNow = await lastValueFrom(
@@ -155,7 +155,7 @@ export class WebSocketService {
         this.client.send<number>('awardsAvailableByEventAward', { eventId })
       );
       
-      if (awards <= 0) return { room: null, event: null, error: true };
+      if (awards > 0) return { room: null, event: null, error: true };
 
       // termino la sala
       const room = await lastValueFrom(
@@ -165,8 +165,8 @@ export class WebSocketService {
 
       // termino el evento
       const event = await lastValueFrom(
-        this.client.send('updateEvent', 
-          {id: eventId, status: EStatusEvent.COMPLETED, end_time: new Date()})
+        this.client.send('completedEvent', 
+          {id: eventId, status: EStatusEvent.COMPLETED, end_time: new Date(), userId})
       );
       return { room, event };
     } catch (error) {

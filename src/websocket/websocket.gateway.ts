@@ -378,7 +378,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     @ConnectedSocket() socket: AuthenticatedSocket,
     @MessageBody() endGameDto: EndGameDto,
   ) {
-    const { roomId } = socket;
+    const { roomId, user } = socket;
     const { gameId, cardId, awardId } = endGameDto;
 
     try {
@@ -408,17 +408,17 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
       },
       );
 
-      this.endRoom(roomId);
+      this.endRoom(roomId, user.id);
     } catch (error) {
       this.logger.error(error);
     }
   }
 
-  async endRoom(roomId: string) {
+  async endRoom(roomId: string, userId: string) {
     // Termino la sala en caso de ser necesario
-    const { room, event, error }  = await this.wsService.endRoom(roomId);
+    const { room, event, error }  = await this.wsService.endRoom(roomId, userId);
 
     if (error) return;
-    this.server.emit(WsConst.room(roomId), { room });
+    this.server.emit(WsConst.room(roomId), { room, event });
   }
 }
