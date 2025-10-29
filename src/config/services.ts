@@ -1,1 +1,3 @@
 export const NATS_SERVICE = 'NATS_SERVICE';
+
+export const SCHEDULER_QUEUE = 'SCHEDULER_QUEUE';

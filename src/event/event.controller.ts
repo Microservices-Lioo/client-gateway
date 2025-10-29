@@ -1,18 +1,21 @@
+import { IEvent } from 'src/event/common/interfaces/event.interface';
 import { Controller, Get, Post, Body, Patch, Param, Delete, Inject, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
 import { NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { catchError } from 'rxjs';
+import { catchError, tap } from 'rxjs';
 import { AuthGuard } from '../common/guards';;
 import { User } from 'src/auth/entities';
 import { CreateEventAwards, UpdateEventDto, UpdateStatusEventDto, StatusDto, ParamIdEventUserDto } from './common/dto';
-import { Auth, CurrentUser } from 'src/common/decorators';
+import { CurrentUser } from 'src/common/decorators';
 import { IdDto, PaginationDto } from 'src/common/dto';
-import { ERoles } from 'src/common/enums';
+import { SchedulerService } from 'src/scheduler/scheduler.service';
+import { IAward } from './common/interfaces';
 
 @Controller('event')
 export class EventController {
   constructor(
     @Inject(NATS_SERVICE) private readonly client: ClientProxy,
+    private schedulerServ: SchedulerService
   ) { }
 
   //* Crear evento
@@ -24,7 +27,15 @@ export class EventController {
   ) {
     createEventAwards.event.userId = user.id;
     return this.client.send('createEvent', createEventAwards)
-      .pipe(catchError(error => { throw new RpcException(error) }));
+      .pipe(
+        catchError(error => { throw new RpcException(error) }),
+        tap(async (data: { event: IEvent, awards: IAward}) => {
+          // programacion para activar el evento
+          const { event, awards } = data;
+          if (!event) return;
+          await this.schedulerServ.scheduleEvent(event.id, new Date(event.start_time))
+        })
+      );
   }
 
   //* Actualizar evento

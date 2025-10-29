@@ -7,6 +7,8 @@ interface EnvVars {
     FRONTEND_URL: string;
     NATS_SERVERS: string[];
     MAX_NUMBER_BINGO: number;
+    REDIS_HOST: string;
+    REDIS_PORT: number;
 }
 
 const envsSchema = joi.object({
@@ -15,6 +17,8 @@ const envsSchema = joi.object({
     FRONTEND_URL: joi.string().required(),
     NATS_SERVERS: joi.array().items( joi.string() ).required(),
     MAX_NUMBER_BINGO: joi.number().required(),
+    REDIS_HOST: joi.string().required(),
+    REDIS_PORT: joi.number().required(),
 })
 .unknown(true);
 
@@ -35,4 +39,6 @@ export const envs: EnvVars = {
     FRONTEND_URL: envVars.FRONTEND_URL,
     NATS_SERVERS: envVars.NATS_SERVERS,
     MAX_NUMBER_BINGO: envVars.MAX_NUMBER_BINGO,
+    REDIS_HOST: envVars.REDIS_HOST,
+    REDIS_PORT: envVars.REDIS_PORT,
 }

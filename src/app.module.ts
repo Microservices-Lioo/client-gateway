@@ -8,9 +8,11 @@ import { WebsocketModule } from './websocket/websocket.module';
 import { NatsModule } from './transport/nats.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SeedsModule } from './seeds/seeds.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
-  imports: [OrdersModule, AuthModule, GamesModule, EventModule, EventEmitterModule.forRoot(), WebsocketModule, NatsModule, PaymentsModule, SeedsModule],
+  imports: [OrdersModule, AuthModule, GamesModule, EventModule, EventEmitterModule.forRoot(), WebsocketModule, NatsModule, PaymentsModule, SeedsModule, SchedulerModule, RedisModule],
   controllers: [],
   providers: [],
 })
